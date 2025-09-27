@@ -11,7 +11,8 @@ import { Grid, List, Bot, Heart, MessageCircle, Share } from "lucide-react"
 const getLoggedInUser = () => {
   if (typeof window !== "undefined") {
     console.log("[v0] Checking localStorage for username...")
-    const username = localStorage.getItem("cloneops_username")
+    // Try the main key used by dashboard-header first, then fallback to the old key for consistency
+    const username = localStorage.getItem("cloneops-current-user") || localStorage.getItem("cloneops_username")
     console.log("[v0] Found username:", username)
     if (username) {
       const user = {

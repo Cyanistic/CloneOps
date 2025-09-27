@@ -27,6 +27,7 @@ export function DashboardHeader() {
 
   const handleLogout = () => {
     localStorage.removeItem("cloneops-current-user")
+    localStorage.removeItem("cloneops_username")
     window.location.href = "/"
   }
 
@@ -80,7 +81,7 @@ export function DashboardHeader() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{currentUser || "User"}</p>
-                    <p className="text-xs leading-none text-muted-foreground">CloneOps Agent Manager</p>
+                    <p className="text-xs leading-none text-muted-foreground">CloneOps Agent</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

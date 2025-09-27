@@ -27,6 +27,9 @@ export function LoginForm() {
 
     try {
       await apiClient.login({ username, password })
+      // Store the username in localStorage for both components to use
+      localStorage.setItem("cloneops-current-user", username)
+      localStorage.setItem("cloneops_username", username)
       // Redirect to dashboard
       window.location.href = "/dashboard"
     } catch (err) {
@@ -55,6 +58,9 @@ export function LoginForm() {
 
     try {
       await apiClient.register({ username, password })
+      // Store the username in localStorage for both components to use after registration
+      localStorage.setItem("cloneops-current-user", username)
+      localStorage.setItem("cloneops_username", username)
       // Redirect to dashboard after successful registration
       window.location.href = "/dashboard"
     } catch (err) {
