@@ -11,11 +11,14 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::{
+    agents,
     auth::SessionAuth,
     entities::{
-        ChatMessage, Conversation, add_users_to_conversation, create_chat_message,
-        create_conversation, get_conversation, get_conversation_participants,
-        is_user_in_conversation, update_conversation_title,
+        ChatMessage, ChatMessageWithMetadata, Conversation, ConversationWithParticipants,
+        add_users_to_conversation, categorize_message, create_chat_message, create_conversation,
+        get_chat_messages, get_conversation, get_conversation_messages,
+        get_conversation_messages_chronological, get_conversation_participants,
+        get_conversation_with_participants, is_user_in_conversation, update_conversation_title,
     },
     error::{AppError, Result},
     events::{SseEvent, broadcast_event},
@@ -131,6 +134,51 @@ pub async fn send_message_handler(
     let message =
         create_chat_message(&state.pool, conversation_id, user_id, payload.content).await?;
 
+    // Get message history for categorization context (chronological order for AI)
+    let history = get_conversation_messages_chronological(&state.pool, conversation_id).await?;
+
+    // Wrap shared data in Arc to avoid unnecessary cloning
+    let message_arc = std::sync::Arc::new(message.clone());
+    let history_arc = std::sync::Arc::new(history);
+
+    // Categorize the message for each recipient (not the sender)
+    let participants = get_conversation_participants(&state.pool, conversation_id).await?;
+    for participant in participants {
+        if participant.id != user_id {
+            // Run categorization asynchronously for each recipient
+            let pool_clone = state.pool.clone();
+            let clients_clone = state.clients.clone();
+            let message_clone = message_arc.clone();
+            let history_clone = history_arc.clone();
+            let recipient_id = participant.id;
+
+            tokio::spawn(async move {
+                // Try to categorize, but don't fail if it doesn't work
+                if let Ok(categorization) =
+                    agents::categorize_message((*message_clone).clone(), &history_clone).await
+                {
+                    if let Ok(_) = categorize_message(
+                        &pool_clone,
+                        recipient_id,
+                        message_clone.id,
+                        categorization.category.clone(),
+                        categorization.reasoning.clone(),
+                    )
+                    .await
+                    {
+                        // Send SSE event for the categorization
+                        let event = SseEvent::MessageCategorized {
+                            message_id: message_clone.id,
+                            category: categorization.category,
+                            reasoning: categorization.reasoning,
+                        };
+                        broadcast_event(&clients_clone, &[recipient_id], &event).await;
+                    }
+                }
+            });
+        }
+    }
+
     // Broadcast the new message to all participants
     broadcast_to_conversation(
         &state.pool,
@@ -227,4 +275,91 @@ pub async fn add_users_to_conversation_handler(
     .await?;
 
     Ok((StatusCode::OK, Json(conversation)).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/conversations/{id}",
+    params(
+        ("id" = Uuid, Path, description = "ID of the conversation to get")
+    ),
+    responses(
+        (status = OK, description = "Conversation retrieved successfully", body = ConversationWithParticipants),
+        (status = FORBIDDEN, description = "User is not part of the conversation"),
+    )
+)]
+pub async fn get_conversation_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Response> {
+    // Authorize: Check if the user is part of the conversation
+    if !is_user_in_conversation(&state.pool, session.0.id, conversation_id).await? {
+        return Err(AppError::AuthError(
+            "You are not a member of this conversation.".into(),
+        ));
+    }
+
+    let conversation_with_participants =
+        get_conversation_with_participants(&state.pool, conversation_id).await?;
+
+    Ok((StatusCode::OK, Json(conversation_with_participants)).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/conversations/{id}/messages",
+    params(
+        ("id" = Uuid, Path, description = "ID of the conversation to get messages for")
+    ),
+    responses(
+        (status = OK, description = "Messages retrieved successfully", body = Vec<ChatMessage>),
+        (status = FORBIDDEN, description = "User is not part of the conversation"),
+    )
+)]
+pub async fn get_messages_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Response> {
+    // Authorize: Check if the user is part of the conversation
+    if !is_user_in_conversation(&state.pool, session.0.id, conversation_id).await? {
+        return Err(AppError::AuthError(
+            "You are not a member of this conversation.".into(),
+        ));
+    }
+
+    let messages = get_conversation_messages(&state.pool, conversation_id).await?;
+
+    Ok((StatusCode::OK, Json(messages)).into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/conversations/{id}/messages/categorized",
+    params(
+        ("id" = Uuid, Path, description = "ID of the conversation to get categorized messages for")
+    ),
+    responses(
+        (status = OK, description = "Categorized messages retrieved successfully", body = Vec<ChatMessageWithMetadata>),
+        (status = FORBIDDEN, description = "User is not part of the conversation"),
+    )
+)]
+pub async fn get_categorized_messages_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Response> {
+    let user_id = session.0.id;
+    // Authorize: Check if the user is part of the conversation
+    if !is_user_in_conversation(&state.pool, user_id, conversation_id).await? {
+        return Err(AppError::AuthError(
+            "You are not a member of this conversation.".into(),
+        ));
+    }
+
+    // Get messages with user-specific categorization metadata
+    let messages = get_chat_messages(&state.pool, conversation_id, user_id).await?;
+
+    Ok((StatusCode::OK, Json(messages)).into_response())
 }

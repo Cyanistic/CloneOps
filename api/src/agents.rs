@@ -162,7 +162,7 @@ pub struct MessageCategorization {
 
 pub async fn categorize_message(
     current_message: ChatMessage,
-    history: Vec<ChatMessage>,
+    history: &[ChatMessage],
 ) -> Result<MessageCategorization> {
     let client = gemini::Client::from_env();
     let agent = client

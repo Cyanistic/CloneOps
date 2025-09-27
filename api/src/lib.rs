@@ -127,13 +127,27 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             messaging::send_message_handler,
             messaging::edit_conversation_handler,
             messaging::add_users_to_conversation_handler,
+            messaging::get_conversation_handler,
+            messaging::get_messages_handler,
+            messaging::get_categorized_messages_handler,
             events::events_handler,
+        ),
+        components(
+            schemas(
+                events::SseEvent,
+                events::SseEventExample,
+                entities::MessageCategory,
+                entities::ChatMessage,
+                entities::Conversation,
+                entities::ConversationWithParticipants,
+                entities::ChatMessageWithMetadata,
+            )
         ),
         tags(
             (name = "users", description = "User related operations"),
             (name = "agents", description = "Agent related operations"),
             (name = "messaging", description = "Messaging and conversation operations"),
-            (name = "events", description = "Real-time event streaming operations"),
+            (name = "events", description = "Real-time event streaming via Server-Sent Events (SSE)"),
         )
     )]
 struct ApiDoc;
@@ -226,6 +240,9 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(messaging::send_message_handler))
         .routes(routes!(messaging::edit_conversation_handler))
         .routes(routes!(messaging::add_users_to_conversation_handler))
+        .routes(routes!(messaging::get_conversation_handler))
+        .routes(routes!(messaging::get_messages_handler))
+        .routes(routes!(messaging::get_categorized_messages_handler))
         .routes(routes!(events::events_handler))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .layer(cors)

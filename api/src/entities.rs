@@ -42,6 +42,14 @@ pub struct Conversation {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationWithParticipants {
+    #[serde(flatten)]
+    pub conversation: Conversation,
+    pub participants: Vec<User>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
@@ -66,7 +74,7 @@ pub enum MessageCategory {
 }
 
 // This special struct will be returned by our get_chat_messages function
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageWithMetadata {
     // All fields from ChatMessage
@@ -296,9 +304,59 @@ pub async fn get_chat_messages(
         FROM messages m
         LEFT JOIN user_message_metadata meta ON m.id = meta.message_id AND meta.user_id = ?
         WHERE m.conversation_id = ?
-        ORDER BY m.created_at ASC
+        ORDER BY DATETIME(m.created_at) DESC
         "#,
         user_id,
+        conversation_id
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(messages)
+}
+
+pub async fn get_conversation_messages(
+    pool: &SqlitePool,
+    conversation_id: Uuid,
+) -> Result<Vec<ChatMessage>> {
+    let messages = sqlx::query_as!(
+        ChatMessage,
+        r#"
+        SELECT 
+            id AS "id: _", 
+            conversation_id AS "conversation_id: _", 
+            sender_id AS "sender_id: _", 
+            content, 
+            created_at AS "created_at: _", 
+            updated_at AS "updated_at: _"
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY DATETIME(created_at) DESC
+        "#,
+        conversation_id
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(messages)
+}
+
+pub async fn get_conversation_messages_chronological(
+    pool: &SqlitePool,
+    conversation_id: Uuid,
+) -> Result<Vec<ChatMessage>> {
+    let messages = sqlx::query_as!(
+        ChatMessage,
+        r#"
+        SELECT 
+            id AS "id: _", 
+            conversation_id AS "conversation_id: _", 
+            sender_id AS "sender_id: _", 
+            content, 
+            created_at AS "created_at: _", 
+            updated_at AS "updated_at: _"
+        FROM messages
+        WHERE conversation_id = ?
+        ORDER BY DATETIME(created_at) ASC
+        "#,
         conversation_id
     )
     .fetch_all(pool)
@@ -380,6 +438,18 @@ pub async fn get_conversation(pool: &SqlitePool, id: Uuid) -> Result<Conversatio
     .fetch_one(pool)
     .await?;
     Ok(conv)
+}
+
+pub async fn get_conversation_with_participants(
+    pool: &SqlitePool,
+    conversation_id: Uuid,
+) -> Result<ConversationWithParticipants> {
+    let conversation = get_conversation(pool, conversation_id).await?;
+    let participants = get_conversation_participants(pool, conversation_id).await?;
+    Ok(ConversationWithParticipants {
+        conversation,
+        participants,
+    })
 }
 
 pub async fn add_users_to_conversation(
