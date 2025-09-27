@@ -2,6 +2,8 @@ import { MessageInbox } from "@/components/message-inbox"
 import { MessageFilters } from "@/components/message-filters"
 import { MessageStats } from "@/components/message-stats"
 import { AutoResponseSettings } from "@/components/auto-response-settings"
+import { ConversationView } from "@/components/conversation-view"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function MessagesPage() {
   return (
@@ -16,7 +18,18 @@ export default function MessagesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3 space-y-6">
           <MessageStats />
-          <MessageInbox />
+          <Tabs defaultValue="conversations" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="conversations">Conversations</TabsTrigger>
+              <TabsTrigger value="inbox">Inbox</TabsTrigger>
+            </TabsList>
+            <TabsContent value="conversations" className="h-[600px] mt-4">
+              <ConversationView />
+            </TabsContent>
+            <TabsContent value="inbox" className="h-[600px] mt-4">
+              <MessageInbox />
+            </TabsContent>
+          </Tabs>
         </div>
         <div className="space-y-6">
           <MessageFilters />

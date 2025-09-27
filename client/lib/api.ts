@@ -185,6 +185,32 @@ class ApiClient {
 
     return await response.json();
   }
+
+  // Messaging endpoints
+  async createConversation(userIds: string[]): Promise<{ id: string; title?: string; lastMessageId?: string; createdAt: string; updatedAt: string }> {
+    return this.post('/api/conversations', { userIds });
+  }
+
+  async sendMessage(conversationId: string, content: any): Promise<any> {
+    return this.post(`/api/conversations/${conversationId}/messages`, { content });
+  }
+
+  async getConversations(): Promise<any[]> {
+    return this.get('/api/conversations');
+  }
+
+  async editConversation(conversationId: string, title: string): Promise<any> {
+    return this.put(`/api/conversations/${conversationId}`, { title });
+  }
+
+  async addUsersToConversation(conversationId: string, userIds: string[]): Promise<any> {
+    return this.post(`/api/conversations/${conversationId}/users`, { userIds });
+  }
+
+  // Events endpoint (for SSE)
+  getEventsEndpoint(): string {
+    return `${this.baseUrl}/api/events`;
+  }
 }
 
 export const apiClient = new ApiClient();

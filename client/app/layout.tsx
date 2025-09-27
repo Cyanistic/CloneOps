@@ -4,7 +4,7 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
-import { SessionProvider } from "@/components/session-provider"
+import { Providers } from "@/components/providers"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardNav } from "@/components/dashboard-nav"
 import "./globals.css"
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable} antialiased`}>
-        <SessionProvider>
+        <Providers>
           <div className="min-h-screen bg-background grid-pattern">
             <NavigationWrapper>
               <DashboardHeader />
@@ -32,7 +32,7 @@ export default function RootLayout({
             </NavigationWrapper>
             <Suspense fallback={null}>{children}</Suspense>
           </div>
-        </SessionProvider>
+        </Providers>
         <Analytics />
       </body>
     </html>
