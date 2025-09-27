@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, EyeOff, Shield, User } from "lucide-react"
-import { apiClient } from "@/lib/api"
+import { API } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import { useSession } from "@/components/session-provider"
 
@@ -61,7 +61,7 @@ export function LoginForm() {
     }
 
     try {
-      await apiClient.register({ username, password })
+      await API.api.register({ username, password })
       // Store the username in localStorage for both components to use after registration
       localStorage.setItem("cloneops-current-user", username)
       localStorage.setItem("cloneops_username", username)

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Heart, MessageCircle, Share, TrendingUp, Users, Search, Copy, RefreshCw } from "lucide-react"
-import { apiClient } from "@/lib/api"
+import { API } from "@/lib/api"
 
 const engagementStats = [
   {
@@ -76,8 +76,8 @@ export function EngagementPanel() {
     setIsResearching(true)
     try {
       // Call the backend API to research the topic
-      const response = await apiClient.researchPrompt(researchTopic)
-      setResearchResults(response.output)
+      const response = await API.api.researchPrompt({prompt: researchTopic})
+      setResearchResults(response.data.output)
     } catch (error) {
       console.error("Error running research:", error)
       setResearchResults("Sorry, I couldn't complete the research at this time. Please try again.")

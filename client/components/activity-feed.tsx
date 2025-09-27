@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Activity, MessageSquare, Send, Heart, AlertTriangle, CheckCircle, Bot } from "lucide-react"
-import { apiClient } from "@/lib/api"
 import { useRealtimeEvents } from "@/components/realtime-event-handler"
 
 interface ActivityItem {

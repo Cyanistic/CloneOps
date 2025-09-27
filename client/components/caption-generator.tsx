@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { apiClient } from "@/lib/api"
 import { Sparkles, Copy, RefreshCw, Wand2, Lightbulb, Search } from "lucide-react"
+import { API } from "@/lib/api"
 
 export function CaptionGenerator() {
   const [prompt, setPrompt] = useState("")
@@ -26,8 +26,8 @@ export function CaptionGenerator() {
     setIsGenerating(true)
     try {
       // Call the backend API to enhance the prompt
-      const response = await apiClient.enhancePrompt(prompt)
-      setSuggestedCaption(response.output)
+      const response = await API.api.enhancePrompt({prompt})
+      setSuggestedCaption(response.data.output)
       setLastGeneratedPrompt(prompt)
       setHasUserModifiedSuggestion(false)
     } catch (error) {
@@ -141,8 +141,8 @@ export function CaptionGenerator() {
                 setIsGenerating(true);
                 try {
                   // Call the backend API to research the prompt
-                  const response = await apiClient.researchPrompt(prompt);
-                  setSuggestedCaption(response.output);
+                  const response = await API.api.researchPrompt({prompt});
+                  setSuggestedCaption(response.data.output);
                   setHasUserModifiedSuggestion(false);
                 } catch (error) {
                   console.error("Error running research:", error);

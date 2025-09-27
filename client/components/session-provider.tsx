@@ -1,7 +1,13 @@
-'use client';
+"use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { apiClient } from '@/lib/api';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import { API, BASE_URL } from "@/lib/api";
 
 interface SessionContextType {
   user: any | null;
@@ -31,14 +37,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // Since we don't have a specific /api/me endpoint, we'll check by making a request
       // to an endpoint that requires authentication.
       // We'll handle the error appropriately without logging it as a real error
-      const response = await fetch(`${apiClient.getBaseURL()}/api/conversations`, {
-        method: 'GET',
-        credentials: 'include', // Include cookies in requests
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
+      const response = await API.api.getProfile();
+
       // If we get 200, user is authenticated
       // If we get 401, user is not authenticated
       if (response.ok) {
@@ -57,7 +57,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (username: string, password: string) => {
-    await apiClient.login({ username, password });
+    await API.api.login({ username, password });
     setIsAuthenticated(true);
     // Optionally fetch user data after login
     // const userData = await fetchUser();
@@ -65,7 +65,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (username: string, password: string) => {
-    await apiClient.register({ username, password });
+    await API.api.register({ username, password });
     // After registration, user might need to login or be logged in automatically
     await login(username, password);
   };
@@ -75,9 +75,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // await apiClient.post('/api/logout');
     setUser(null);
     setIsAuthenticated(false);
-    
+
     // Redirect to login page
-    window.location.href = '/';
+    window.location.href = "/";
   };
 
   const value = {
@@ -86,20 +86,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     isAuthenticated,
     login,
     logout,
-    register
+    register,
   };
 
   return (
-    <SessionContext.Provider value={value}>
-      {children}
-    </SessionContext.Provider>
+    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
   );
 }
 
 export function useSession() {
   const context = useContext(SessionContext);
   if (context === undefined) {
-    throw new Error('useSession must be used within a SessionProvider');
+    throw new Error("useSession must be used within a SessionProvider");
   }
   return context;
 }
+
