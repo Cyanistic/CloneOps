@@ -366,3 +366,39 @@ pub async fn update_conversation_title(
     .await?;
     Ok(conv)
 }
+
+pub async fn get_conversation(pool: &SqlitePool, id: Uuid) -> Result<Conversation> {
+    let conv = sqlx::query_as!(
+        Conversation,
+        r#"
+        SELECT id AS "id: _", title, last_message_id AS "last_message_id: _", created_at AS "created_at: _", updated_at AS "updated_at: _"
+        FROM conversations
+        WHERE id = ?
+        "#,
+        id
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(conv)
+}
+
+pub async fn add_users_to_conversation(
+    pool: &SqlitePool,
+    conversation_id: Uuid,
+    user_ids: &[Uuid],
+) -> Result<()> {
+    let mut tx = pool.begin().await?;
+
+    for user_id in user_ids {
+        sqlx::query!(
+            "INSERT OR IGNORE INTO conversation_participants (conversation_id, user_id) VALUES (?, ?)",
+            conversation_id,
+            user_id
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(())
+}

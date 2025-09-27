@@ -47,6 +47,7 @@ mod agents;
 mod auth;
 mod entities;
 mod error;
+mod events;
 mod messaging;
 mod state;
 mod users;
@@ -125,11 +126,14 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             messaging::create_conversation_handler,
             messaging::send_message_handler,
             messaging::edit_conversation_handler,
+            messaging::add_users_to_conversation_handler,
+            events::events_handler,
         ),
         tags(
             (name = "users", description = "User related operations"),
             (name = "agents", description = "Agent related operations"),
             (name = "messaging", description = "Messaging and conversation operations"),
+            (name = "events", description = "Real-time event streaming operations"),
         )
     )]
 struct ApiDoc;
@@ -221,6 +225,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(messaging::create_conversation_handler))
         .routes(routes!(messaging::send_message_handler))
         .routes(routes!(messaging::edit_conversation_handler))
+        .routes(routes!(messaging::add_users_to_conversation_handler))
+        .routes(routes!(events::events_handler))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .layer(cors)
         .with_state(state)

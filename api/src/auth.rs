@@ -73,4 +73,3 @@ where
         Ok(Some(SessionAuth(user)))
     }
 }
-

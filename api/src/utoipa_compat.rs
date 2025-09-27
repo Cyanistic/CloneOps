@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use serde::{Serialize};
+use serde::Serialize;
 use utoipa::ToSchema;
 
 /// Describes the content of a message, which can be text, a tool result, an image, audio, or

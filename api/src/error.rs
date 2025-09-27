@@ -116,12 +116,7 @@ impl IntoResponse for AppError {
             AppError::ExtractionError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
         // Return a JSON response with the error type and message.
-        (
-            status,
-            headers,
-            Json(self),
-        )
-            .into_response()
+        (status, headers, Json(self)).into_response()
     }
 }
 
