@@ -6,6 +6,7 @@ use url::Url;
 
 #[tokio::main]
 async fn main() -> Result<(), eyre::Report> {
+    dotenvy::dotenv().ok();
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {

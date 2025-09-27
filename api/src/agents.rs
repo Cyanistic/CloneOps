@@ -10,7 +10,13 @@ use axum::{
 use rig::{
     client::{CompletionClient, ProviderClient},
     completion::Prompt,
-    providers::gemini::{self, completion::GEMINI_1_5_FLASH},
+    providers::gemini::{
+        self,
+        completion::{
+            GEMINI_1_5_FLASH, GEMINI_2_0_FLASH,
+            gemini_api_types::{AdditionalParameters, GenerationConfig, ThinkingConfig},
+        },
+    },
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,6 +32,17 @@ pub struct PromptResponse {
     pub output: String,
 }
 
+pub fn generation_config() -> serde_json::Value {
+    let gen_cfg = GenerationConfig {
+        thinking_config: None,
+        ..Default::default()
+    };
+    let cfg = AdditionalParameters::default().with_config(gen_cfg);
+    serde_json::to_value(cfg).unwrap()
+}
+
+pub const MODEL_NAME: &str = GEMINI_2_0_FLASH;
+
 #[utoipa::path(
     post,
     path = "/api/agents/enhance_prompt",
@@ -39,55 +56,46 @@ pub struct PromptResponse {
 pub async fn enhance_prompt(Json(full_prompt): Json<InputPrompt>) -> Result<Response> {
     let client = gemini::Client::from_env();
     let agent = client
-        .agent(GEMINI_1_5_FLASH)
-        .name("Prompt Enhancer Agent")
+        .agent(MODEL_NAME)
+        .name("Impactful Text Enhancer Agent")
+        .additional_params(generation_config())
         .build();
 
-    let result = agent.prompt(format!(r#"### The Prompt Enhancer Master Prompt
-        You are an expert-level Prompt Engineering Assistant. Your primary function is to take a user's raw, often brief or vague, prompt and transform it into a detailed, structured, and highly effective prompt for a large language model. Your goal is to maximize the quality, relevance, and precision of the AI's output by eliminating ambiguity and providing rich context.
+    let result = agent.prompt(format!(r#"### 
+    ### The Impactful Text Enhancer Prompt
 
-        **Your Process:**
+        You are an expert Copywriter and Digital Communication Strategist. Your job is to take a user's simple, direct, or rough piece of text and rewrite it to be more impactful, engaging, and nuanced.
 
-        1.  **Analyze Intent**: First, analyze the user's raw input to understand their true underlying goal. What are they *really* trying to achieve?
-        2.  **Identify Missing Information**: Determine what crucial information is missing. Consider the context, the target audience, the desired format, and any constraints.
-        3.  **Enrich and Elaborate**: Systematically enhance the original prompt by adding the following elements where appropriate:
-            *   **Role & Persona**: Assign a specific, expert persona for the AI to adopt (e.g., "Act as a senior data scientist," "You are a world-class marketing copywriter," "Be a patient and empathetic tutor").
-            *   **Clear Objective**: Define a single, clear, and actionable task. Start with a strong action verb.
-            *   **Contextual Background**: Provide the necessary background or situational context that the AI needs to understand the "why" behind the request.
-            *   **Step-by-Step Instructions**: For complex tasks, break down the request into a logical sequence of steps for the AI to follow.
-            *   **Output Format & Structure**: Explicitly define the desired structure and format of the output (e.g., "Format the output as a JSON object," "Use Markdown with headers and bullet points," "Provide the answer in a table with three columns...").
-            *   **Constraints & Rules**: Set clear boundaries. What should the AI *not* do? (e.g., "Do not use technical jargon," "Keep the response under 300 words," "Avoid any mention of pricing").
-            *   **Example**: If the task is nuanced, provide a small, clear example of the desired input/output style.
+        **Your Enhancement Process:**
+
+        1.  **Identify the Core Intent**: Analyze the user's text to understand the core message and the underlying emotion or goal.
+        2.  **Consider Angles**: Mentally consider different possible angles or tones for the rewrite (e.g., professional, casual, enthusiastic, inquisitive) to determine which would be most effective for the likely context (social media, direct message, etc.).
+        3.  **Produce the Single Best Version**: Based on your analysis, produce a **single, polished, and impactful version** of the text. Your goal is to be decisive and provide the one result you determine to be the most effective.
+
+        **Crucial Output Rules:**
+
+        *   **Your response must contain *only* the final, enhanced text.** Note that emojis and hashtags are allowed, but must be used sparingly and only when they add value to the message.
+        *   Do NOT, under any circumstances, include conversational preambles like "Okay, I'm ready," "Here is the enhanced text," or any other explanatory sentences.
+        *   Do NOT provide a list of multiple options, titles, or variations.
+        *   The output should be only the raw, rewritten text, ready to be used directly.
 
         **Example Transformation:**
 
-        *   **User's Raw Input:** `"summarize this article for me [link]"`
-        *   **Your Enhanced Output:**
+        *   **User's Raw Text:** `"I finished the report."`
+        *   **Your Required Output:**
             ```
-            Act as a professional research assistant. Your task is to read the content of the provided article and create a concise, well-structured summary for a busy executive.
-
-            **Article to Summarize:** [link]
-
-            **Structure your summary as follows:**
-            1.  **One-Sentence Summary**: Start with a single, powerful sentence that encapsulates the core argument or finding of the article.
-            2.  **Key Takeaways**: Provide a bulleted list of the 3-5 most important points or conclusions from the article. Each bullet point should be a full, easy-to-understand sentence.
-            3.  **Actionable Insights**: In a final paragraph, briefly describe any actionable advice, recommendations, or implications presented in the article.
-
-            **Constraints:**
-            - The entire summary must not exceed 250 words.
-            - The tone should be professional, objective, and direct.
-            - Do not include any personal opinions or information not explicitly found in the article.
+            The report is complete and has been sent over for your review. I'm looking forward to hearing your feedback.
             ```
 
         ---
 
-        **Your Turn:**
+        **Your Task:**
 
-        Now, take the following user input and apply this process to generate a new, enhanced, and well-thought-out prompt.
+        Analyze the user's text below. Following the process and the crucial output rules above, provide only the single, best-enhanced version of the text.
 
-        **User Input:** `{}`
+        **User Text:** `{}`
 
-        **Enhanced Prompt:**
+        **Your Output:**
         "#, full_prompt.prompt)).await?;
     Ok((StatusCode::OK, Json(PromptResponse { output: result })).into_response())
 }
@@ -105,8 +113,9 @@ pub async fn enhance_prompt(Json(full_prompt): Json<InputPrompt>) -> Result<Resp
 pub async fn research_prompt(Json(full_prompt): Json<InputPrompt>) -> Result<Response> {
     let client = gemini::Client::from_env();
     let agent = client
-        .agent(GEMINI_1_5_FLASH)
+        .agent(MODEL_NAME)
         .name("Researcher Agent")
+        .additional_params(generation_config())
         .build();
 
     let result = agent.prompt(format!(r#"
@@ -157,7 +166,8 @@ pub async fn categorize_message(
 ) -> Result<MessageCategorization> {
     let client = gemini::Client::from_env();
     let agent = client
-        .extractor::<MessageCategorization>(GEMINI_1_5_FLASH)
+        .extractor::<MessageCategorization>(MODEL_NAME)
+        .additional_params(generation_config())
         .build();
 
     let stringified_message = serde_json::to_string(&current_message)?;

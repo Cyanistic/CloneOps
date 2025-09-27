@@ -46,7 +46,7 @@ impl<T> Deref for LossyError<T> {
 /// Useful to provide more fine grained error handling in our application.
 /// Helps us debug errors in the code easier and gives the client a better idea of what went wrong.
 #[derive(Debug, Serialize, Error)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[serde(tag = "type", content = "message", rename_all = "camelCase")]
 pub enum AppError {
     #[error("The JSON body was rejected: {0}")]
     JsonRejection(LossyError<JsonRejection>),
@@ -97,7 +97,7 @@ impl AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let mut headers = HeaderMap::new();
-        let (status, message) = match &self {
+        let (status, _message) = match &self {
             AppError::JsonRejection(rejection) => (rejection.status(), rejection.body_text()),
             AppError::SerdeError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             AppError::AuthError(e) => {
@@ -119,10 +119,7 @@ impl IntoResponse for AppError {
         (
             status,
             headers,
-            Json(ErrorResponse {
-                r#type: self,
-                message,
-            }),
+            Json(self),
         )
             .into_response()
     }

@@ -56,14 +56,17 @@ pub struct LoginUser {
         (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)
     )
 )]
-pub async fn login(State(state): State<AppState>, Json(login_user): Json<LoginUser>) -> Result<Response> {
+pub async fn login(
+    State(state): State<AppState>,
+    Json(login_user): Json<LoginUser>,
+) -> Result<Response> {
     let Some(user) = get_user(&state.pool, login_user.username).await? else {
         return Err(AppError::UserError((
             LossyError(StatusCode::NOT_FOUND),
             "User not found".into(),
         )));
     };
-    
+
     // Verify the provided password against the hashed password
     if login_user.password != user.password {
         return Err(AppError::UserError((
@@ -71,18 +74,20 @@ pub async fn login(State(state): State<AppState>, Json(login_user): Json<LoginUs
             "Invalid username or password".into(),
         )));
     }
-    
+
     let session = create_session(&state.pool, user.id).await?;
     Ok((
         StatusCode::OK,
-        [(
-            SET_COOKIE,
-            format!("session={}; HttpOnly; Max-Age=34560000", session.id),
-        )],
-        AppendHeaders([(
-            SET_COOKIE,
-            "authenticated=true; Max-Age=34560000; Path=/".to_string(),
-        )]),
+        AppendHeaders([
+            (
+                SET_COOKIE,
+                format!("session={}; HttpOnly; Max-Age=34560000", session.id),
+            ),
+            (
+                SET_COOKIE,
+                "authenticated=true; Max-Age=34560000; Path=/".to_string(),
+            ),
+        ]),
     )
         .into_response())
 }

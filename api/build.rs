@@ -4,7 +4,12 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
 };
 use std::{
-    env::{self, temp_dir}, fs::File, io::ErrorKind, path::PathBuf, str::FromStr, sync::LazyLock
+    env::{self, temp_dir},
+    fs::File,
+    io::ErrorKind,
+    path::PathBuf,
+    str::FromStr,
+    sync::LazyLock,
 };
 
 /// Build file for migration scripts to ensure that the compile-time
