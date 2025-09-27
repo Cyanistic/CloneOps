@@ -89,6 +89,28 @@ pub struct ChatMessageWithMetadata {
     pub reasoning: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Post {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub created_by: Uuid,
+    #[schema(value_type = Vec<crate::utoipa_compat::UserContent>)]
+    pub content: Json<OneOrMany<UserContent>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Delegation {
+    pub owner_id: Uuid,
+    pub delegate_id: Uuid,
+    pub can_post: bool,
+    pub can_message: bool,
+    pub created_at: DateTime<Utc>,
+}
+
 pub async fn create_user(pool: &SqlitePool, user: &CreateUser) -> Result<User> {
     let user_id = Uuid::new_v4();
     let Some(user) = sqlx::query_as!(
@@ -470,5 +492,186 @@ pub async fn add_users_to_conversation(
     }
 
     tx.commit().await?;
+    Ok(())
+}
+
+// ====== Posts Functions ======
+
+pub async fn create_post(
+    pool: &SqlitePool,
+    user_id: Uuid,
+    created_by: Uuid,
+    content: OneOrMany<UserContent>,
+) -> Result<Post> {
+    let post_id = Uuid::new_v4();
+    let content_json = Json(content);
+    let post = sqlx::query_as!(
+        Post,
+        r#"
+        INSERT INTO posts (id, user_id, created_by, content)
+        VALUES (?, ?, ?, ?)
+        RETURNING 
+            id AS "id: _",
+            user_id AS "user_id: _",
+            created_by AS "created_by: _",
+            content AS "content: Json<OneOrMany<UserContent>>",
+            created_at AS "created_at: _",
+            updated_at AS "updated_at: _"
+        "#,
+        post_id,
+        user_id,
+        created_by,
+        content_json
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(post)
+}
+
+pub async fn get_user_posts(pool: &SqlitePool, user_id: Uuid) -> Result<Vec<Post>> {
+    let posts = sqlx::query_as!(
+        Post,
+        r#"
+        SELECT 
+            id AS "id: _",
+            user_id AS "user_id: _",
+            created_by AS "created_by: _",
+            content AS "content: Json<OneOrMany<UserContent>>",
+            created_at AS "created_at: _",
+            updated_at AS "updated_at: _"
+        FROM posts
+        WHERE user_id = ?
+        ORDER BY DATETIME(created_at) DESC
+        "#,
+        user_id
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(posts)
+}
+
+pub async fn delete_post(pool: &SqlitePool, post_id: Uuid, user_id: Uuid) -> Result<()> {
+    let result = sqlx::query!(
+        "DELETE FROM posts WHERE id = ? AND (user_id = ? OR created_by = ?)",
+        post_id,
+        user_id,
+        user_id
+    )
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::AuthError("Post not found or unauthorized".into()));
+    }
+    Ok(())
+}
+
+// ====== Delegation Functions ======
+
+pub async fn create_delegation(
+    pool: &SqlitePool,
+    owner_id: Uuid,
+    delegate_id: Uuid,
+    can_post: bool,
+    can_message: bool,
+) -> Result<Delegation> {
+    let delegation = sqlx::query_as!(
+        Delegation,
+        r#"
+        INSERT INTO delegations (owner_id, delegate_id, can_post, can_message)
+        VALUES (?, ?, ?, ?)
+        RETURNING 
+            owner_id AS "owner_id: _",
+            delegate_id AS "delegate_id: _",
+            can_post,
+            can_message,
+            created_at AS "created_at: _"
+        "#,
+        owner_id,
+        delegate_id,
+        can_post,
+        can_message
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(delegation)
+}
+
+pub async fn get_user_delegations(pool: &SqlitePool, owner_id: Uuid) -> Result<Vec<Delegation>> {
+    let delegations = sqlx::query_as!(
+        Delegation,
+        r#"
+        SELECT 
+            owner_id AS "owner_id: _",
+            delegate_id AS "delegate_id: _",
+            can_post,
+            can_message,
+            created_at AS "created_at: _"
+        FROM delegations
+        WHERE owner_id = ?
+        "#,
+        owner_id
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(delegations)
+}
+
+pub async fn get_delegated_to_user(
+    pool: &SqlitePool,
+    delegate_id: Uuid,
+) -> Result<Vec<Delegation>> {
+    let delegations = sqlx::query_as!(
+        Delegation,
+        r#"
+        SELECT 
+            owner_id AS "owner_id: _",
+            delegate_id AS "delegate_id: _",
+            can_post,
+            can_message,
+            created_at AS "created_at: _"
+        FROM delegations
+        WHERE delegate_id = ?
+        "#,
+        delegate_id
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(delegations)
+}
+
+pub async fn check_delegation(
+    pool: &SqlitePool,
+    owner_id: Uuid,
+    delegate_id: Uuid,
+) -> Result<Option<Delegation>> {
+    let delegation = sqlx::query_as!(
+        Delegation,
+        r#"
+        SELECT 
+            owner_id AS "owner_id: _",
+            delegate_id AS "delegate_id: _",
+            can_post,
+            can_message,
+            created_at AS "created_at: _"
+        FROM delegations
+        WHERE owner_id = ? AND delegate_id = ?
+        "#,
+        owner_id,
+        delegate_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(delegation)
+}
+
+pub async fn delete_delegation(pool: &SqlitePool, owner_id: Uuid, delegate_id: Uuid) -> Result<()> {
+    sqlx::query!(
+        "DELETE FROM delegations WHERE owner_id = ? AND delegate_id = ?",
+        owner_id,
+        delegate_id
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }

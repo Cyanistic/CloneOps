@@ -1,6 +1,6 @@
 use crate::{
     auth::SessionAuth,
-    entities::{ChatMessage, Conversation, MessageCategory, get_conversation_participants},
+    entities::{ChatMessage, Conversation, MessageCategory, Post, get_conversation_participants},
     error::Result,
     state::{AppState, ClientMap},
 };
@@ -53,6 +53,9 @@ pub enum SseEvent {
         /// AI-generated reasoning for the categorization
         reasoning: String,
     },
+
+    /// A new post was created
+    NewPost(Post),
 }
 
 /// Example SSE event structure that will be sent to clients.

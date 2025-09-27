@@ -56,5 +56,32 @@ CREATE TABLE user_message_metadata (
     FOREIGN KEY (message_id) REFERENCES messages(id)
 );
 
--- Create an index for faster message retrieval by conversation
+-- Posts table for social media functionality
+CREATE TABLE posts (
+    id BLOB NOT NULL PRIMARY KEY,
+    user_id BLOB NOT NULL,      -- Who owns this post
+    created_by BLOB NOT NULL,    -- Who actually created it (owner or delegate)
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- Simple delegation system
+CREATE TABLE delegations (
+    owner_id BLOB NOT NULL,
+    delegate_id BLOB NOT NULL,
+    can_post BOOLEAN NOT NULL DEFAULT 1,
+    can_message BOOLEAN NOT NULL DEFAULT 1,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (owner_id, delegate_id),
+    FOREIGN KEY (owner_id) REFERENCES users(id),
+    FOREIGN KEY (delegate_id) REFERENCES users(id)
+);
+
+-- Create indexes for better performance
 CREATE INDEX idx_messages_conversation_id ON messages (conversation_id);
+CREATE INDEX idx_posts_user_id ON posts (user_id);
+CREATE INDEX idx_posts_created_at ON posts (DATETIME(created_at) DESC);
+CREATE INDEX idx_delegations_delegate_id ON delegations (delegate_id);

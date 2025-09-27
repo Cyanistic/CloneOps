@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
@@ -15,8 +15,8 @@ use crate::{
     auth::SessionAuth,
     entities::{
         ChatMessage, ChatMessageWithMetadata, Conversation, ConversationWithParticipants,
-        add_users_to_conversation, categorize_message, create_chat_message, create_conversation,
-        get_chat_messages, get_conversation, get_conversation_messages,
+        add_users_to_conversation, categorize_message, check_delegation, create_chat_message,
+        create_conversation, get_chat_messages, get_conversation, get_conversation_messages,
         get_conversation_messages_chronological, get_conversation_participants,
         get_conversation_with_participants, is_user_in_conversation, update_conversation_title,
     },
@@ -51,6 +51,13 @@ pub struct SendMessageRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AddUsersToConversationRequest {
     pub user_ids: Vec<Uuid>,
+}
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ActAsQuery {
+    /// Send message on behalf of another user (requires delegation)
+    pub act_as: Option<Uuid>,
 }
 
 // ====== Helper Functions ======
@@ -120,19 +127,45 @@ pub async fn send_message_handler(
     State(state): State<AppState>,
     session: SessionAuth,
     Path(conversation_id): Path<Uuid>,
+    Query(query): Query<ActAsQuery>,
     Json(payload): Json<SendMessageRequest>,
 ) -> Result<Response> {
-    let user_id = session.0.id;
-    // Authorize: Check if the user is part of the conversation
-    if !is_user_in_conversation(&state.pool, user_id, conversation_id).await? {
-        return Err(AppError::AuthError(
-            "You are not a member of this conversation.".into(),
-        ));
-    }
+    let actual_sender = session.0.id;
+
+    // Determine who we're sending as
+    let sender_id = if let Some(act_as_id) = query.act_as {
+        // Check if user has delegation to message as act_as_id
+        if let Some(delegation) = check_delegation(&state.pool, act_as_id, actual_sender).await? {
+            if !delegation.can_message {
+                return Err(AppError::AuthError(
+                    "You don't have permission to send messages as this user".into(),
+                ));
+            }
+            // Check if the act_as user is part of the conversation
+            if !is_user_in_conversation(&state.pool, act_as_id, conversation_id).await? {
+                return Err(AppError::AuthError(
+                    "The user you're acting as is not a member of this conversation".into(),
+                ));
+            }
+            act_as_id
+        } else {
+            return Err(AppError::AuthError(
+                "You don't have delegation from this user".into(),
+            ));
+        }
+    } else {
+        // Check if the actual user is part of the conversation
+        if !is_user_in_conversation(&state.pool, actual_sender, conversation_id).await? {
+            return Err(AppError::AuthError(
+                "You are not a member of this conversation.".into(),
+            ));
+        }
+        actual_sender
+    };
 
     // The `UserContent` needs to be serialized to a string to be stored.
     let message =
-        create_chat_message(&state.pool, conversation_id, user_id, payload.content).await?;
+        create_chat_message(&state.pool, conversation_id, sender_id, payload.content).await?;
 
     // Get message history for categorization context (chronological order for AI)
     let history = get_conversation_messages_chronological(&state.pool, conversation_id).await?;
@@ -144,7 +177,7 @@ pub async fn send_message_handler(
     // Categorize the message for each recipient (not the sender)
     let participants = get_conversation_participants(&state.pool, conversation_id).await?;
     for participant in participants {
-        if participant.id != user_id {
+        if participant.id != sender_id {
             // Run categorization asynchronously for each recipient
             let pool_clone = state.pool.clone();
             let clients_clone = state.clients.clone();

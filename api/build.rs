@@ -3,13 +3,7 @@ use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
 };
-use std::{
-    env,
-    fs::File,
-    io::ErrorKind,
-    path::PathBuf,
-    str::FromStr,
-};
+use std::{env, fs::File, io::ErrorKind, path::PathBuf, str::FromStr};
 
 /// Build file for migration scripts to ensure that the compile-time
 /// queries are compatible with the latest migration scripts

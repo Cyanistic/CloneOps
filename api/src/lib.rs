@@ -49,6 +49,7 @@ mod entities;
 mod error;
 mod events;
 mod messaging;
+mod posts;
 mod state;
 mod users;
 mod utoipa_compat;
@@ -130,6 +131,14 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             messaging::get_conversation_handler,
             messaging::get_messages_handler,
             messaging::get_categorized_messages_handler,
+            posts::create_post_handler,
+            posts::get_posts_handler,
+            posts::delete_post_handler,
+            posts::create_delegation_handler,
+            posts::get_delegations_handler,
+            posts::get_received_delegations_handler,
+            posts::revoke_delegation_handler,
+            posts::get_feed_handler,
             events::events_handler,
         ),
         components(
@@ -141,12 +150,16 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
                 entities::Conversation,
                 entities::ConversationWithParticipants,
                 entities::ChatMessageWithMetadata,
+                entities::Post,
+                entities::Delegation,
+                posts::FeedResponse,
             )
         ),
         tags(
             (name = "users", description = "User related operations"),
             (name = "agents", description = "Agent related operations"),
             (name = "messaging", description = "Messaging and conversation operations"),
+            (name = "posts", description = "Social media posts and delegation management"),
             (name = "events", description = "Real-time event streaming via Server-Sent Events (SSE)"),
         )
     )]
@@ -243,6 +256,14 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(messaging::get_conversation_handler))
         .routes(routes!(messaging::get_messages_handler))
         .routes(routes!(messaging::get_categorized_messages_handler))
+        .routes(routes!(posts::create_post_handler))
+        .routes(routes!(posts::get_posts_handler))
+        .routes(routes!(posts::delete_post_handler))
+        .routes(routes!(posts::create_delegation_handler))
+        .routes(routes!(posts::get_delegations_handler))
+        .routes(routes!(posts::get_received_delegations_handler))
+        .routes(routes!(posts::revoke_delegation_handler))
+        .routes(routes!(posts::get_feed_handler))
         .routes(routes!(events::events_handler))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .layer(cors)
