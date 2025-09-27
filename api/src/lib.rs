@@ -43,6 +43,7 @@ use utoipa::{
 use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
+mod agents;
 mod auth;
 mod entities;
 mod error;
@@ -116,12 +117,12 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
         paths(
             users::register,
             users::login,
+            agents::enhance_prompt,
+            agents::research_prompt,
         ),
         tags(
             (name = "users", description = "User related operations"),
-            (name = "upload", description = "File and directory uploading"),
-            (name = "session", description = "User session management"),
-            (name = "share", description = "File and directory sharing"),
+            (name = "agents", description = "Agent related operations"),
         )
     )]
 struct ApiDoc;
@@ -207,6 +208,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::register))
         .routes(routes!(users::login))
+        .routes(routes!(agents::enhance_prompt))
+        .routes(routes!(agents::research_prompt))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .layer(cors)
         .with_state(state)

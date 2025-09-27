@@ -344,6 +344,7 @@ dependencies = [
  "lazy-regex",
  "regex",
  "rig-core",
+ "schemars",
  "serde",
  "serde_json",
  "sqlx",

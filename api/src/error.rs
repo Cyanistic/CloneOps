@@ -3,12 +3,14 @@ use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use axum::{
+    Json,
     extract::rejection::JsonRejection,
     http::{HeaderMap, StatusCode, header::SET_COOKIE},
     response::{IntoResponse, Response},
-    Json,
 };
 use color_eyre::eyre;
+use rig::completion::PromptError;
+use rig::extractor::ExtractionError;
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 use utoipa::ToSchema;
@@ -43,7 +45,8 @@ impl<T> Deref for LossyError<T> {
 /// Error that wraps `anyhow::Error`.
 /// Useful to provide more fine grained error handling in our application.
 /// Helps us debug errors in the code easier and gives the client a better idea of what went wrong.
-#[derive(Debug, Error)]
+#[derive(Debug, Serialize, Error)]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum AppError {
     #[error("The JSON body was rejected: {0}")]
     JsonRejection(LossyError<JsonRejection>),
@@ -57,6 +60,10 @@ pub enum AppError {
     UserError((LossyError<StatusCode>, String)),
     #[error("Something went wrong: {0}")]
     Generic(LossyError<eyre::Error>),
+    #[error("Prompt error: {0}")]
+    PromptError(LossyError<PromptError>),
+    #[error("Extraction error: {0}")]
+    ExtractionError(LossyError<ExtractionError>),
 }
 
 /// A JSON response for errors that includes the error type and message
@@ -80,17 +87,9 @@ impl AppError {
             AppError::SqlxError(_) => "SqlxError",
             AppError::Generic(_) => "Generic",
             AppError::UserError(_) => "User",
+            AppError::PromptError(_) => "PromptError",
+            AppError::ExtractionError(_) => "ExtractionError",
         }
-    }
-}
-
-// Manual Serialize impl to control the output format
-impl Serialize for AppError {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.r#type())
     }
 }
 
@@ -110,10 +109,11 @@ impl IntoResponse for AppError {
                 (StatusCode::UNAUTHORIZED, e.to_string())
             }
             AppError::UserError((code, e)) => (**code, e.to_string()),
-            AppError::SqlxError(_) | AppError::Generic(_) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                self.to_string(),
-            ),
+            AppError::SqlxError(_) | AppError::Generic(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            }
+            AppError::PromptError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            AppError::ExtractionError(_) => (StatusCode::INTERNAL_SERVER_ERROR, self.to_string()),
         };
         // Return a JSON response with the error type and message.
         (
@@ -151,6 +151,8 @@ impl_from_error!(JsonRejection => JsonRejection);
 impl_from_error!(sqlx::Error => SqlxError);
 impl_from_error!(serde_json::Error => SerdeError);
 impl_from_error!(eyre::Error => Generic);
+impl_from_error!(PromptError => PromptError);
+impl_from_error!(ExtractionError => ExtractionError);
 impl_from_error!(std::io::Error);
 impl_from_error!(sqlx::migrate::MigrateError);
 

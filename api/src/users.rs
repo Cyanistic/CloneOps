@@ -1,8 +1,10 @@
 use axum::{
-    extract::State, http::{header::SET_COOKIE, StatusCode}, response::{AppendHeaders, IntoResponse, Response}, Json
+    Json,
+    extract::State,
+    http::{StatusCode, header::SET_COOKIE},
+    response::{AppendHeaders, IntoResponse, Response},
 };
 use serde::Deserialize;
-use sqlx::prelude::FromRow;
 use utoipa::ToSchema;
 
 use crate::{
@@ -12,6 +14,7 @@ use crate::{
 };
 
 #[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateUser {
     pub username: String,
     pub password: String,
@@ -37,6 +40,7 @@ pub async fn register(
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct LoginUser {
     pub username: String,
     pub password: String,
@@ -61,21 +65,11 @@ pub async fn login(State(state): State<AppState>, Json(login_user): Json<LoginUs
     };
     
     // Verify the provided password against the hashed password
-    match verify(&login_user.password, &user.password) {
-        Ok(valid) => {
-            if !valid {
-                return Err(AppError::UserError((
-                    LossyError(StatusCode::UNAUTHORIZED),
-                    "Invalid username or password".into(),
-                )));
-            }
-        }
-        Err(_) => {
-            return Err(AppError::UserError((
-                LossyError(StatusCode::UNAUTHORIZED),
-                "Invalid username or password".into(),
-            )));
-        }
+    if login_user.password != user.password {
+        return Err(AppError::UserError((
+            LossyError(StatusCode::UNAUTHORIZED),
+            "Invalid username or password".into(),
+        )));
     }
     
     let session = create_session(&state.pool, user.id).await?;

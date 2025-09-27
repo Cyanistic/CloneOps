@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
-use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{DateTime, Duration, Utc};
+use rig::{OneOrMany, message::UserContent};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, prelude::FromRow};
 use uuid::Uuid;
@@ -11,6 +12,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: Uuid,
     pub username: String,
@@ -20,6 +22,7 @@ pub struct User {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -28,21 +31,37 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessage {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub conversation_id: Uuid,
+    pub content: OneOrMany<UserContent>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, JsonSchema, Debug, Serialize, Deserialize, sqlx::Type)]
+#[repr(u8)]
+pub enum MessageCategory {
+    Important = 0,
+    Sponsorship = 1,
+    Networking = 2,
+    GeneralInquiry = 3,
+    Spam = 4,
+    Urgent = 5,
+}
+
 pub async fn create_user(pool: &SqlitePool, user: &CreateUser) -> Result<User> {
     let id = Uuid::new_v4();
-    // Hash the password before storing it
-    let hashed_password = hash(&user.password, DEFAULT_COST)
-        .map_err(|_| AppError::UserError((
-            LossyError(StatusCode::INTERNAL_SERVER_ERROR),
-            "Failed to hash password".into(),
-        )))?;
-    
+
     let Some(user) = sqlx::query_as!(
         User,
         r#"INSERT INTO users (id, username, password) VALUES (?, ?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
         id,
         user.username,
-        hashed_password
+        user.password,
     )
     .fetch_optional(pool)
     .await?
