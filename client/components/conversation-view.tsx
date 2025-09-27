@@ -7,8 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MessageSquare, Send, Bot, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { apiClient } from "@/lib/api";
 import { useRealtimeEvents } from "@/components/realtime-event-handler";
+import { useSession } from "@/components/session-provider";
 
 interface Conversation {
   id: string;
@@ -46,95 +49,89 @@ export function ConversationView() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [invitedUsername, setInvitedUsername] = useState("");
+  const [invitations, setInvitations] = useState<any[]>([]);
+  const { user } = useSession(); // Get the current user from session
   const { events } = useRealtimeEvents();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-  // Fetch conversations when component mounts
+  // Get current user and fetch conversations when component mounts
   useEffect(() => {
-    const fetchConversations = async () => {
+    const fetchData = async () => {
       try {
-        // In a real implementation, this would fetch from the API
-        // For now, we'll simulate with some mock data
-        const mockConversations: Conversation[] = [
-          {
-            id: "conv-1",
-            title: "Team Collaboration",
-            createdAt: "2023-01-01T00:00:00Z",
-            updatedAt: "2023-01-01T00:00:00Z",
-          },
-          {
-            id: "conv-2",
-            title: "Business Inquiries",
-            createdAt: "2023-01-02T00:00:00Z",
-            updatedAt: "2023-01-02T00:00:00Z",
-          },
-          {
-            id: "conv-3",
-            title: "Fan Mail",
-            createdAt: "2023-01-03T00:00:00Z",
-            updatedAt: "2023-01-03T00:00:00Z",
-          },
-        ];
+        // Fetch from the API
+        const fetchedConversations = await apiClient.getConversations();
         
-        setConversations(mockConversations);
+        setConversations(fetchedConversations);
         setLoading(false);
         
         // Set the first conversation as selected if none is selected
-        if (!selectedConversation && mockConversations.length > 0) {
-          setSelectedConversation(mockConversations[0]);
+        if (!selectedConversation && fetchedConversations.length > 0) {
+          setSelectedConversation(fetchedConversations[0]);
         }
       } catch (error) {
         console.error("Error fetching conversations:", error);
+        
+        // Check if it's an authentication error
+        if (error instanceof Error && error.message.includes('401')) {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+          return;
+        }
+        
         setLoading(false);
       }
     };
 
-    fetchConversations();
-  }, [selectedConversation]);
+    fetchData();
+  }, [selectedConversation, user]); // Add user dependency to refetch when user changes
 
   // Load messages for selected conversation
   useEffect(() => {
     if (selectedConversation) {
       const fetchMessages = async () => {
         try {
-          // In a real implementation, this would fetch from the API
-          // For now, we'll simulate with some mock data
-          const mockMessages: Message[] = [
-            {
-              id: "msg-1",
-              conversationId: selectedConversation.id,
-              senderId: "2",
-              content: "Hey team, how's the project coming along?",
-              createdAt: "2023-01-01T10:00:00Z",
-              senderName: "Sarah Johnson",
-            },
-            {
-              id: "msg-2",
-              conversationId: selectedConversation.id,
-              senderId: "1",
-              content: "We're making good progress! Should be on track for the deadline.",
-              createdAt: "2023-01-01T10:05:00Z",
-              senderName: "Current User",
-            },
-            {
-              id: "msg-3",
-              conversationId: selectedConversation.id,
-              senderId: "3",
-              content: "Great to hear! I've reviewed the prototype and it looks good.",
-              createdAt: "2023-01-01T10:10:00Z",
-              senderName: "Mike Creator",
-            },
-          ];
+          // Fetch from the API
+          const fetchedMessages = await apiClient.getConversationMessages(selectedConversation.id);
           
-          setMessages(mockMessages);
+          setMessages(fetchedMessages);
         } catch (error) {
           console.error("Error fetching messages:", error);
+          
+          // Check if it's an authentication error
+          if (error instanceof Error && error.message.includes('401')) {
+            // Redirect to login if not authenticated
+            window.location.href = '/';
+            return;
+          }
         }
       };
 
       fetchMessages();
     }
   }, [selectedConversation]);
+
+  // Fetch invitations when component mounts
+  useEffect(() => {
+    const fetchInvitations = async () => {
+      try {
+        const fetchedInvitations = await apiClient.getConversationInvites();
+        setInvitations(fetchedInvitations);
+      } catch (error) {
+        console.error("Error fetching invitations:", error);
+        
+        // Check if it's an authentication error
+        if (error instanceof Error && error.message.includes('401')) {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+          return;
+        }
+      }
+    };
+
+    fetchInvitations();
+  }, []);
 
   // Handle real-time message events
   useEffect(() => {
@@ -145,11 +142,36 @@ export function ConversationView() {
         // Add the new message to the current conversation
         setMessages(prev => [...prev, latestEvent.data]);
       } else if (latestEvent.type === 'newConversation') {
-        // Add new conversation to the list
-        setConversations(prev => [latestEvent.data, ...prev]);
+        // Only add the conversation if it includes the current user
+        const currentUserId = user?.id;
+        if (currentUserId && latestEvent.data.participants?.includes(currentUserId)) {
+          setConversations(prev => [latestEvent.data, ...prev]);
+        }
+        // Otherwise, refresh the entire list to ensure we have the latest
+        else {
+          const fetchData = async () => {
+            try {
+              const fetchedConversations = await apiClient.getConversations();
+              setConversations(fetchedConversations);
+            } catch (error) {
+              console.error("Error fetching conversations:", error);
+            }
+          };
+          fetchData();
+        }
+      } else if (latestEvent.type === 'editConversation') {
+        // Update conversation in the list
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === latestEvent.data.id ? latestEvent.data : conv
+          )
+        );
+      } else if (latestEvent.type === 'newInvite') {
+        // Add new invitation to the list
+        setInvitations(prev => [...prev, latestEvent.data]);
       }
     }
-  }, [events, selectedConversation]);
+  }, [events, selectedConversation, user]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -165,8 +187,31 @@ export function ConversationView() {
     if (!newMessage.trim() || !selectedConversation) return;
 
     try {
-      // In a real implementation, this would send to the API
-      // For now, we'll add it locally
+      // In the message content, we need to match the rig::OneOrMany<UserContent> structure
+      // For text messages, we'll just send the text content
+      const messageData = await apiClient.sendMessage(selectedConversation.id, {
+        content: [
+          {
+            type: "text",
+            text: newMessage
+          }
+        ]
+      });
+      
+      // Add the message from the API response to the list
+      setMessages(prev => [...prev, messageData]);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('401')) {
+        // Redirect to login if not authenticated
+        window.location.href = '/';
+        return;
+      }
+      
+      // Fallback to local creation if API fails for other reasons
       const newMsg: Message = {
         id: Date.now().toString(),
         conversationId: selectedConversation.id,
@@ -178,26 +223,73 @@ export function ConversationView() {
 
       setMessages(prev => [...prev, newMsg]);
       setNewMessage("");
-    } catch (error) {
-      console.error("Error sending message:", error);
     }
   };
 
   const handleCreateConversation = async () => {
+    if (!invitedUsername.trim()) {
+      alert("Username is required to create a conversation.");
+      return;
+    }
+    
     try {
-      // In a real implementation, this would create via the API
-      // For now, we'll add it locally
+      // First, look up the user by username
+      let invitedUser: any;
+      
+      try {
+        invitedUser = await apiClient.getUserByUsername(invitedUsername);
+        if (!invitedUser) {
+          alert(`User "${invitedUsername}" not found.`);
+          return;
+        }
+      } catch (userError) {
+        console.error(`Could not find user with username: ${invitedUsername}`, userError);
+        // Provide more detailed error message
+        if (userError instanceof Error && userError.message.includes('404')) {
+          alert(`User "${invitedUsername}" does not exist. Please check the username and try again.`);
+        } else {
+          alert(`Error looking up user "${invitedUsername}". Please try again.`);
+        }
+        return;
+      }
+      
+      // Get the current user's ID from session context
+      const currentUserId = user?.id; // Get the current user's ID from session
+      if (!currentUserId) {
+        alert("You must be logged in to create a conversation.");
+        return;
+      }
+
+      // Create a new conversation with both users
+      const newConversationData = await apiClient.createConversation([currentUserId, invitedUser.id]);
+      
+      // Update local state
+      setConversations(prev => [newConversationData, ...prev]);
+      setSelectedConversation(newConversationData);
+      setIsCreatingConversation(false);
+      setInvitedUsername("");
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('401')) {
+        // Redirect to login if not authenticated
+        window.location.href = '/';
+        return;
+      }
+      
+      // Fallback to local creation if API fails for other reasons
       const newConversation: Conversation = {
         id: `conv-${Date.now()}`,
-        title: "New Conversation",
+        title: `Conversation with ${invitedUsername || "Unknown User"}`,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
       setConversations(prev => [newConversation, ...prev]);
       setSelectedConversation(newConversation);
-    } catch (error) {
-      console.error("Error creating conversation:", error);
+      setIsCreatingConversation(false);
+      setInvitedUsername("");
     }
   };
 
@@ -246,11 +338,96 @@ export function ConversationView() {
       {/* Conversation List */}
       <div className="w-1/3 border-r border-border pr-4 flex flex-col">
         <div className="mb-4">
-          <Button onClick={handleCreateConversation} className="w-full">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            New Conversation
-          </Button>
+          <Dialog open={isCreatingConversation} onOpenChange={setIsCreatingConversation}>
+            <DialogTrigger asChild>
+              <Button className="w-full">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                New Conversation
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Start New Conversation</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <label htmlFor="username" className="text-right">
+                    Username
+                  </label>
+                  <Input
+                    id="username"
+                    value={invitedUsername}
+                    onChange={(e) => setInvitedUsername(e.target.value)}
+                    className="col-span-3"
+                    placeholder="Enter username to invite"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setIsCreatingConversation(false);
+                    setInvitedUsername("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateConversation}>
+                  Create Conversation
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
+        
+        {/* Display invitations */}
+        {invitations.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-sm font-medium text-muted-foreground mb-2">Invitations</h3>
+            <div className="space-y-2">
+              {invitations.map(invite => (
+                <div key={invite.id} className="p-3 rounded-lg border border-border bg-blue-500/10">
+                  <p className="text-sm font-medium">Conversation Invite</p>
+                  <p className="text-xs text-muted-foreground">{invite.message || "Join a conversation"}</p>
+                  <div className="flex space-x-2 mt-2">
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={async () => {
+                        try {
+                          await apiClient.respondToInvite(invite.id, true);
+                          // Remove the invitation from the list
+                          setInvitations(prev => prev.filter(i => i.id !== invite.id));
+                          // The conversation should now appear in the list
+                        } catch (error) {
+                          console.error("Error accepting invitation:", error);
+                        }
+                      }}
+                    >
+                      Accept
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={async () => {
+                        try {
+                          await apiClient.respondToInvite(invite.id, false);
+                          // Remove the invitation from the list
+                          setInvitations(prev => prev.filter(i => i.id !== invite.id));
+                        } catch (error) {
+                          console.error("Error declining invitation:", error);
+                        }
+                      }}
+                    >
+                      Decline
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         <ScrollArea className="flex-grow">
           <div className="space-y-2">

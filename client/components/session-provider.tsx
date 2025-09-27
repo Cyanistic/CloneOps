@@ -26,11 +26,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const checkSessionStatus = async () => {
     try {
-      // In a real app, we might have a /api/me endpoint to verify session
-      // For now, we assume if we have the proper cookies, we're authenticated
-      setIsAuthenticated(true); // This would be determined by actual API call
-      // setUser(data); // Actual user data from API
+      // For now, we'll just make a simple authenticated request to see if session exists
+      // Using a safe endpoint that will return 401 if not authenticated
+      // Since we don't have a specific /api/me endpoint, we'll check by making a request
+      // to an endpoint that requires authentication.
+      // We'll handle the error appropriately without logging it as a real error
+      const response = await fetch(`${apiClient.getBaseURL()}/api/conversations`, {
+        method: 'GET',
+        credentials: 'include', // Include cookies in requests
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      // If we get 200, user is authenticated
+      // If we get 401, user is not authenticated
+      if (response.ok) {
+        setIsAuthenticated(true);
+      } else if (response.status === 401) {
+        setIsAuthenticated(false);
+        setUser(null);
+      }
     } catch (error) {
+      // Network errors or other issues should be treated as not authenticated
       setIsAuthenticated(false);
       setUser(null);
     } finally {

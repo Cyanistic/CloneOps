@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,11 +9,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, EyeOff, Shield, User } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { useRouter } from "next/navigation"
+import { useSession } from "@/components/session-provider"
 
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const router = useRouter()
+  const { login } = useSession()
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,14 +29,15 @@ export function LoginForm() {
     const password = formData.get("password") as string
 
     try {
-      await apiClient.login({ username, password })
+      await login(username, password)
       // Store the username in localStorage for both components to use
       localStorage.setItem("cloneops-current-user", username)
       localStorage.setItem("cloneops_username", username)
       // Redirect to dashboard
-      window.location.href = "/dashboard"
+      router.push("/dashboard")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed")
+      const errorMessage = err instanceof Error ? err.message : "Login failed";
+      setError(errorMessage);
     } finally {
       setIsLoading(false)
     }
@@ -61,10 +65,17 @@ export function LoginForm() {
       // Store the username in localStorage for both components to use after registration
       localStorage.setItem("cloneops-current-user", username)
       localStorage.setItem("cloneops_username", username)
+      // Log in after successful registration
+      await login(username, password);
       // Redirect to dashboard after successful registration
-      window.location.href = "/dashboard"
+      router.push("/dashboard")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed")
+      const errorMessage = err instanceof Error ? err.message : "Registration failed";
+      if (errorMessage.includes("UNIQUE constraint failed") || errorMessage.includes("username")) {
+        setError("Username already exists. Please choose a different username.");
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false)
     }

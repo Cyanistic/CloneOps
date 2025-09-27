@@ -111,6 +111,14 @@ export function ActivityFeed() {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching activities:", error);
+        
+        // Check if it's an authentication error
+        if (error instanceof Error && error.message.includes('401')) {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+          return;
+        }
+        
         setLoading(false);
       }
     };

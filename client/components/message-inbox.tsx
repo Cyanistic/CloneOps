@@ -21,7 +21,8 @@ interface Message {
   category: string;
   status: string;
   priority: string;
-  agentResponse?: string;
+  agentResponse?: string | null;
+  reasoning?: string; // Added for message categorization
 }
 
 const getCategoryIcon = (category: string) => {
@@ -91,7 +92,7 @@ export function MessageInbox() {
           {
             id: "2",
             sender: "mike_creator",
-            content: "Love your content! Keep up the amazing work 🔥",
+            content: "Oh my god, that pasta dish you posted looks absolutely incredible! How did you get the sauce to look so creamy? I'm definitely trying this recipe this weekend!",
             timestamp: "15 minutes ago",
             category: "sponsorship",
             status: "auto_replied",
@@ -111,7 +112,7 @@ export function MessageInbox() {
           {
             id: "4",
             sender: "business_inquiry",
-            content: "Hello, I'd like to discuss a potential collaboration opportunity.",
+            content: "Hello! My name is David from TechCorp. I'm impressed by your culinary expertise and social media presence. We have an opening for a Food Content Specialist position that I think you'd be perfect for. Would you be interested in learning more about this opportunity?",
             timestamp: "1 hour ago",
             category: "networking",
             status: "auto_replied",
@@ -124,6 +125,14 @@ export function MessageInbox() {
         setLoading(false);
       } catch (error) {
         console.error("Error fetching messages:", error);
+        
+        // Check if it's an authentication error
+        if (error instanceof Error && error.message.includes('401')) {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+          return;
+        }
+        
         setLoading(false);
       }
     };
@@ -160,6 +169,13 @@ export function MessageInbox() {
         setReplyText("");
       } catch (error) {
         console.error("Error sending reply:", error);
+        
+        // Check if it's an authentication error
+        if (error instanceof Error && error.message.includes('401')) {
+          // Redirect to login if not authenticated
+          window.location.href = '/';
+          return;
+        }
       }
     }
   };
@@ -172,9 +188,21 @@ export function MessageInbox() {
     try {
       // In a real implementation, this would call the API to generate a response
       // For now, we'll simulate with a timeout and a mock response
-      // const response = await apiClient.enhancePrompt(`Message: ${selectedMessage.content}\n\nGenerate an appropriate response:`);
+      const response = await apiClient.enhancePrompt(`Message: ${selectedMessage.content}\n\nGenerate an appropriate response:`);
       
-      // Simulate API call delay
+      // If API call succeeds, use the response
+      setReplyText(response.output);
+    } catch (error) {
+      console.error("Error generating AI response:", error);
+      
+      // Check if it's an authentication error
+      if (error instanceof Error && error.message.includes('401')) {
+        // Redirect to login if not authenticated
+        window.location.href = '/';
+        return;
+      }
+      
+      // Simulate API call delay for mock response
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Mock AI-generated responses based on message category
@@ -211,9 +239,6 @@ export function MessageInbox() {
       
       // Set the generated response in the reply text
       setReplyText(randomResponse);
-    } catch (error) {
-      console.error("Error generating AI response:", error);
-      setReplyText("Sorry, I couldn't generate a response at this time. Could you try rephrasing?");
     } finally {
       setIsGenerating(false);
     }
@@ -310,6 +335,9 @@ export function MessageInbox() {
                         </div>
                       </div>
                       <p className="text-sm text-foreground mb-2">{message.content}</p>
+                      {message.reasoning && (
+                        <p className="text-xs text-muted-foreground italic mb-2">Reasoning: {message.reasoning}</p>
+                      )}
                       {message.agentResponse && (
                         <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
                           <div className="flex items-center gap-2 mb-2">

@@ -1,55 +1,78 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Sparkles, Copy, RefreshCw, Wand2 } from "lucide-react"
-
-const toneOptions = [
-  { value: "professional", label: "Professional" },
-  { value: "casual", label: "Casual" },
-  { value: "humorous", label: "Humorous" },
-  { value: "inspiring", label: "Inspiring" },
-  { value: "educational", label: "Educational" },
-]
-
-const lengthOptions = [
-  { value: "short", label: "Short (1-2 sentences)" },
-  { value: "medium", label: "Medium (3-4 sentences)" },
-  { value: "long", label: "Long (5+ sentences)" },
-]
+import { apiClient } from "@/lib/api"
+import { Sparkles, Copy, RefreshCw, Wand2, Lightbulb, Search } from "lucide-react"
 
 export function CaptionGenerator() {
   const [prompt, setPrompt] = useState("")
-  const [tone, setTone] = useState("")
-  const [length, setLength] = useState("")
-  const [generatedCaptions, setGeneratedCaptions] = useState<string[]>([])
+  const [suggestedCaption, setSuggestedCaption] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [hasUserModifiedSuggestion, setHasUserModifiedSuggestion] = useState(false)
+  const [lastGeneratedPrompt, setLastGeneratedPrompt] = useState("")
+  
+  // Debounce timer ref
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null)
 
-  const generateCaptions = async () => {
-    if (!prompt.trim()) return
+  // Function to generate caption based on current prompt
+  const generateCaption = async () => {
+    if (!prompt.trim() || prompt === lastGeneratedPrompt) return
 
     setIsGenerating(true)
-    // Simulate AI caption generation
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const mockCaptions = [
-      "Just discovered something incredible! This changes everything. What do you think about this approach? 🤔 #innovation #discovery",
-      "Sharing some insights from today's work session. Hope this sparks some ideas for your own projects! ✨ #productivity #insights",
-      "Quick update from the creative process. Sometimes the best ideas come when you least expect them! 🚀 #creativity #process",
-      "Reflecting on this week's progress and feeling grateful for the journey. Every step teaches us something new! 🙏 #growth #reflection",
-    ]
-
-    setGeneratedCaptions(mockCaptions)
-    setIsGenerating(false)
+    try {
+      // Call the backend API to enhance the prompt
+      const response = await apiClient.enhancePrompt(prompt)
+      setSuggestedCaption(response.output)
+      setLastGeneratedPrompt(prompt)
+      setHasUserModifiedSuggestion(false)
+    } catch (error) {
+      console.error("Error generating caption:", error)
+      setSuggestedCaption("Sorry, I couldn't generate a caption at this time. Please try rephrasing your input.")
+    } finally {
+      setIsGenerating(false)
+    }
   }
+
+  // Debounced handler for text changes
+  const handlePromptChange = (value: string) => {
+    setPrompt(value)
+    
+    // Clear any existing timer
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+    
+    // Set a new timer to generate caption after 1 second of inactivity
+    debounceTimer.current = setTimeout(() => {
+      if (value.trim()) {
+        generateCaption()
+      } else {
+        setSuggestedCaption("")
+      }
+    }, 1000)
+  }
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+    }
+  }, [])
 
   const copyCaption = (caption: string) => {
     navigator.clipboard.writeText(caption)
+  }
+
+  const handleSuggestionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setSuggestedCaption(e.target.value)
+    setHasUserModifiedSuggestion(true)
   }
 
   return (
@@ -68,77 +91,83 @@ export function CaptionGenerator() {
             id="prompt"
             placeholder="Describe your image or the topic you want to post about..."
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => handlePromptChange(e.target.value)}
             rows={3}
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Tone</Label>
-            <Select value={tone} onValueChange={setTone}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select tone" />
-              </SelectTrigger>
-              <SelectContent>
-                {toneOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="suggestion">AI Suggestion</Label>
+            {isGenerating && (
+              <div className="flex items-center text-xs text-muted-foreground">
+                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                Generating...
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label>Length</Label>
-            <Select value={length} onValueChange={setLength}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select length" />
-              </SelectTrigger>
-              <SelectContent>
-                {lengthOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="relative">
+            <Textarea
+              id="suggestion"
+              placeholder={isGenerating ? "Generating suggestion..." : "AI-generated suggestion will appear here..."}
+              value={suggestedCaption}
+              onChange={handleSuggestionChange}
+              rows={4}
+              disabled={isGenerating}
+              className="pl-10"
+            />
+            <Lightbulb className="absolute top-3 left-3 h-4 w-4 text-yellow-500" />
           </div>
+          {suggestedCaption && !hasUserModifiedSuggestion && (
+            <div className="text-xs text-muted-foreground">
+              <p>The AI automatically generated this suggestion based on your description.</p>
+            </div>
+          )}
         </div>
 
-        <Button onClick={generateCaptions} disabled={!prompt.trim() || isGenerating} className="w-full">
-          {isGenerating ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Wand2 className="h-4 w-4 mr-2" />
-              Generate Captions
-            </>
+        <div className="flex space-x-2 pt-2">
+          <Button 
+            onClick={generateCaption}
+            disabled={!prompt.trim() || isGenerating}
+            className="flex-1"
+            variant="outline"
+          >
+            <Wand2 className="h-4 w-4 mr-2" />
+            Regenerate
+          </Button>
+          <Button 
+            onClick={async () => {
+              if (prompt.trim()) {
+                setIsGenerating(true);
+                try {
+                  // Call the backend API to research the prompt
+                  const response = await apiClient.researchPrompt(prompt);
+                  setSuggestedCaption(response.output);
+                  setHasUserModifiedSuggestion(false);
+                } catch (error) {
+                  console.error("Error running research:", error);
+                  setSuggestedCaption("Sorry, I couldn't run research at this time. Please try rephrasing your input.");
+                } finally {
+                  setIsGenerating(false);
+                }
+              }
+            }}
+            disabled={!prompt.trim() || isGenerating}
+            variant="outline"
+          >
+            <Search className="h-4 w-4 mr-2" />
+            Research
+          </Button>
+          {suggestedCaption && (
+            <Button 
+              onClick={() => copyCaption(suggestedCaption)}
+              variant="secondary"
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy
+            </Button>
           )}
-        </Button>
-
-        {generatedCaptions.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Generated Captions</h4>
-            {generatedCaptions.map((caption, index) => (
-              <div key={index} className="p-3 rounded-lg border border-border bg-muted/30">
-                <p className="text-sm mb-3">{caption}</p>
-                <div className="flex items-center justify-between">
-                  <Badge variant="secondary" className="text-xs">
-                    Option {index + 1}
-                  </Badge>
-                  <Button variant="ghost" size="sm" onClick={() => copyCaption(caption)}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   )

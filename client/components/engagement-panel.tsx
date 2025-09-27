@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Heart, MessageCircle, Share, TrendingUp, Users } from "lucide-react"
+import { Heart, MessageCircle, Share, TrendingUp, Users, Search, Copy, RefreshCw } from "lucide-react"
+import { apiClient } from "@/lib/api"
 
 const engagementStats = [
   {
@@ -64,6 +66,30 @@ const recentEngagements = [
 ]
 
 export function EngagementPanel() {
+  const [researchTopic, setResearchTopic] = useState("")
+  const [researchResults, setResearchResults] = useState("")
+  const [isResearching, setIsResearching] = useState(false)
+
+  const runResearch = async () => {
+    if (!researchTopic.trim()) return
+
+    setIsResearching(true)
+    try {
+      // Call the backend API to research the topic
+      const response = await apiClient.researchPrompt(researchTopic)
+      setResearchResults(response.output)
+    } catch (error) {
+      console.error("Error running research:", error)
+      setResearchResults("Sorry, I couldn't complete the research at this time. Please try again.")
+    } finally {
+      setIsResearching(false)
+    }
+  }
+
+  const copyResults = () => {
+    navigator.clipboard.writeText(researchResults)
+  }
+
   return (
     <Card className="border-border bg-card">
       <CardHeader>
@@ -73,7 +99,7 @@ export function EngagementPanel() {
         </CardTitle>
         <CardDescription>Real-time social interaction analytics</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-3">
           {engagementStats.map((stat, index) => (
             <div key={index} className="p-3 rounded-lg border border-border bg-muted/30">
@@ -85,6 +111,59 @@ export function EngagementPanel() {
               <p className="text-xs text-muted-foreground">{stat.metric}</p>
             </div>
           ))}
+        </div>
+
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium">Research Content Ideas</h4>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                value={researchTopic}
+                onChange={(e) => setResearchTopic(e.target.value)}
+                placeholder="Enter topic to research..."
+                className="flex-1 px-3 py-2 border border-border rounded-md bg-background text-sm"
+                disabled={isResearching}
+              />
+              <button
+                onClick={runResearch}
+                disabled={!researchTopic.trim() || isResearching}
+                className={`px-3 py-2 rounded-md text-sm flex items-center ${
+                  !researchTopic.trim() || isResearching
+                    ? "bg-muted text-muted-foreground cursor-not-allowed"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90"
+                }`}
+              >
+                {isResearching ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Researching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Research
+                  </>
+                )}
+              </button>
+            </div>
+
+            {researchResults && (
+              <div className="p-3 rounded-lg border border-border bg-muted/30">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-sm font-medium">Research Results</h5>
+                  <button
+                    onClick={copyResults}
+                    className="flex items-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </button>
+                </div>
+                <div className="text-sm whitespace-pre-wrap">{researchResults}</div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-3">

@@ -211,6 +211,71 @@ class ApiClient {
   getEventsEndpoint(): string {
     return `${this.baseUrl}/api/events`;
   }
+
+  // Get the base URL
+  getBaseURL(): string {
+    return this.baseUrl;
+  }
+
+  // Post-related endpoints
+  async getPosts(): Promise<any[]> {
+    return this.get('/api/posts');
+  }
+
+  async createPost(postData: any): Promise<any> {
+    return this.post('/api/posts', postData);
+  }
+
+  async updatePost(postId: string, postData: any): Promise<any> {
+    return this.put(`/api/posts/${postId}`, postData);
+  }
+
+  async deletePost(postId: string): Promise<any> {
+    return this.delete(`/api/posts/${postId}`);
+  }
+
+  // Conversation-related endpoints
+  async getConversations(): Promise<any[]> {
+    return this.get('/api/conversations');
+  }
+
+  async getConversationMessages(conversationId: string): Promise<any[]> {
+    return this.get(`/api/conversations/${conversationId}/messages`);
+  }
+
+  async categorizeMessage(conversationId: string, messageId: string, category: string, reasoning: string): Promise<any> {
+    return this.post(`/api/conversations/${conversationId}/messages/${messageId}/categorize`, {
+      category,
+      reasoning
+    });
+  }
+
+  // User-related endpoints
+  async getUserByUsername(username: string): Promise<any> {
+    return this.get(`/api/users/${username}`);
+  }
+
+  async searchUsers(query: string): Promise<any[]> {
+    return this.get(`/api/users/search?q=${encodeURIComponent(query)}`);
+  }
+
+  // Invitation-related endpoints
+  async sendConversationInvite(userId: string, conversationId: string, message?: string): Promise<any> {
+    return this.post(`/api/conversations/${conversationId}/invites`, {
+      userId,
+      message
+    });
+  }
+
+  async getConversationInvites(): Promise<any[]> {
+    return this.get('/api/conversations/invites');
+  }
+
+  async respondToInvite(inviteId: string, accept: boolean): Promise<any> {
+    return this.post(`/api/conversations/invites/${inviteId}/respond`, {
+      accept
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
