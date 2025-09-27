@@ -1,8 +1,9 @@
 use axum::http::StatusCode;
 use chrono::{DateTime, Duration, Utc};
+use rig::{OneOrMany, message::UserContent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, prelude::FromRow};
+use sqlx::{SqlitePool, prelude::FromRow, types::Json};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -11,7 +12,8 @@ use crate::{
     users::CreateUser,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct User {
     pub id: Uuid,
     pub username: String,
@@ -20,7 +22,8 @@ pub struct User {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -29,7 +32,8 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct Conversation {
     pub id: Uuid,
     pub title: Option<String>,
@@ -38,7 +42,8 @@ pub struct Conversation {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
     pub id: Uuid,
     pub conversation_id: Uuid,
@@ -50,6 +55,7 @@ pub struct ChatMessage {
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::Type, ToSchema, JsonSchema)]
 #[repr(u8)]
+#[serde(rename_all = "camelCase")]
 pub enum MessageCategory {
     Important,
     Sponsorship,
@@ -61,6 +67,7 @@ pub enum MessageCategory {
 
 // This special struct will be returned by our get_chat_messages function
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct ChatMessageWithMetadata {
     // All fields from ChatMessage
     pub id: Uuid,
@@ -75,9 +82,11 @@ pub struct ChatMessageWithMetadata {
 }
 
 pub async fn create_user(pool: &SqlitePool, user: &CreateUser) -> Result<User> {
+    let id = Uuid::new_v4();
     let Some(user) = sqlx::query_as!(
         User,
-        r#"INSERT INTO users (username, password) VALUES (?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
+        r#"INSERT OR IGNORE INTO users (id, username, password) VALUES (?, ?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
+        id,
         user.username,
         user.password
     )
@@ -173,7 +182,7 @@ pub async fn delete_session(pool: &SqlitePool, id: Uuid) -> Result<()> {
     Ok(())
 }
 
-pub async fn create_conversation(pool: &SqlitePool, user_ids: Vec<Uuid>) -> Result<Conversation> {
+pub async fn create_conversation(pool: &SqlitePool, user_ids: &[Uuid]) -> Result<Conversation> {
     let mut tx = pool.begin().await?;
     let conv_id = Uuid::new_v4();
     let conv = sqlx::query_as!(
@@ -238,10 +247,11 @@ pub async fn create_chat_message(
     pool: &SqlitePool,
     conversation_id: Uuid,
     sender_id: Uuid,
-    content: String,
+    content: OneOrMany<UserContent>,
 ) -> Result<ChatMessage> {
     let mut tx = pool.begin().await?;
     let msg_id = Uuid::new_v4();
+    let msg_content = Json(content);
     let msg = sqlx::query_as!(
         ChatMessage,
         r#"INSERT INTO messages (id, conversation_id, sender_id, content) VALUES (?, ?, ?, ?) 
@@ -249,7 +259,7 @@ pub async fn create_chat_message(
         msg_id,
         conversation_id,
         sender_id,
-        content
+        msg_content
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -319,4 +329,40 @@ pub async fn categorize_message(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+pub async fn is_user_in_conversation(
+    pool: &SqlitePool,
+    user_id: Uuid,
+    conversation_id: Uuid,
+) -> Result<bool> {
+    let count = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM conversation_participants WHERE user_id = ? AND conversation_id = ?",
+        user_id,
+        conversation_id
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(count > 0)
+}
+
+pub async fn update_conversation_title(
+    pool: &SqlitePool,
+    id: Uuid,
+    title: String,
+) -> Result<Conversation> {
+    let conv = sqlx::query_as!(
+        Conversation,
+        r#"
+        UPDATE conversations
+        SET title = ?
+        WHERE id = ?
+        RETURNING id AS "id: _", title, last_message_id AS "last_message_id: _", created_at AS "created_at: _", updated_at AS "updated_at: _"
+        "#,
+        title,
+        id
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(conv)
 }

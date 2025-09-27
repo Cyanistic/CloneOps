@@ -8,7 +8,8 @@ use serde::Deserialize;
 use utoipa::ToSchema;
 
 use crate::{
-    entities::{create_session, create_user, get_user},
+    auth::SessionAuth,
+    entities::{User, create_session, create_user, get_user},
     error::{AppError, ErrorResponse, LossyError, Result},
     state::AppState,
 };
@@ -90,4 +91,19 @@ pub async fn login(
         ]),
     )
         .into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/profile",
+    responses(
+        (status = OK, description = "Current user profile", body = User),
+        (status = FORBIDDEN, description = "User is not authenticated"),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn get_profile(SessionAuth(user): SessionAuth) -> Result<Json<User>> {
+    Ok(Json(user))
 }

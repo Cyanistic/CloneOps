@@ -16,7 +16,7 @@ axum = { version = "0.8.4", features = ["http2", "multipart"] }
 bcrypt = "0.15.1"
 color-eyre = "0.6.5"
 dirs = "6.0.0"
-rig-core = "0.20.0"
+rig-core = { git = "https://github.com/0xPlaygrounds/rig.git" }
 serde = { version = "1.0.227", features = ["derive"] }
 serde_json = "1.0.145"
 sqlx = { version = "0.8.6", features = ["chrono", "runtime-tokio", "sqlite", "uuid"] }
@@ -24,7 +24,7 @@ tokio = { version = "1.47.1", features = ["full"] }
 tower = "0.5.2"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-utoipa = { version = "5.4.0", features = ["axum_extras"] }
+utoipa = { version = "5.4.0", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "9.0.0", features = ["axum"] }
 tower-http = { version = "0.6.2", features = ["trace", "fs", "cors", "compression-br", "compression-gzip", "compression-zstd", "sensitive-headers", "util", "timeout", "set-header"] }
 uuid = { version = "1.18.1", features = ["serde", "v4"] }

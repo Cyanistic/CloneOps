@@ -47,8 +47,10 @@ mod agents;
 mod auth;
 mod entities;
 mod error;
+mod messaging;
 mod state;
 mod users;
+mod utoipa_compat;
 
 use crate::{error::Result, state::AppState};
 
@@ -117,12 +119,17 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
         paths(
             users::register,
             users::login,
+            users::get_profile,
             agents::enhance_prompt,
             agents::research_prompt,
+            messaging::create_conversation_handler,
+            messaging::send_message_handler,
+            messaging::edit_conversation_handler,
         ),
         tags(
             (name = "users", description = "User related operations"),
             (name = "agents", description = "Agent related operations"),
+            (name = "messaging", description = "Messaging and conversation operations"),
         )
     )]
 struct ApiDoc;
@@ -208,8 +215,12 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .routes(routes!(users::register))
         .routes(routes!(users::login))
+        .routes(routes!(users::get_profile))
         .routes(routes!(agents::enhance_prompt))
         .routes(routes!(agents::research_prompt))
+        .routes(routes!(messaging::create_conversation_handler))
+        .routes(routes!(messaging::send_message_handler))
+        .routes(routes!(messaging::edit_conversation_handler))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
         .layer(cors)
         .with_state(state)
