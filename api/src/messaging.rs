@@ -18,7 +18,8 @@ use crate::{
         add_users_to_conversation, categorize_message, check_delegation, create_chat_message,
         create_conversation, get_chat_messages, get_conversation, get_conversation_messages,
         get_conversation_messages_chronological, get_conversation_participants,
-        get_conversation_with_participants, is_user_in_conversation, update_conversation_title,
+        get_conversation_with_participants, get_user_conversations, is_user_in_conversation,
+        update_conversation_title,
     },
     error::{AppError, Result},
     events::{SseEvent, broadcast_event},
@@ -395,4 +396,59 @@ pub async fn get_categorized_messages_handler(
     let messages = get_chat_messages(&state.pool, conversation_id, user_id).await?;
 
     Ok((StatusCode::OK, Json(messages)).into_response())
+}
+
+
+// ====== List Conversations Endpoint ======
+
+#[derive(Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ConversationsQuery {
+    /// Filter conversations by user ID (if you have access)
+    pub user_id: Option<Uuid>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/conversations",
+    params(
+        ("user_id" = Option<Uuid>, Query, description = "Filter by user ID (requires access)")
+    ),
+    responses(
+        (status = OK, description = "List of conversations", body = Vec<Conversation>),
+        (status = FORBIDDEN, description = "No access to these conversations"),
+    )
+)]
+pub async fn list_conversations_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Query(query): Query<ConversationsQuery>,
+) -> Result<Response> {
+    let user_id = if let Some(requested_user_id) = query.user_id {
+        // Check if user has access to view this user's conversations
+        if requested_user_id == session.0.id {
+            // Viewing own conversations
+            requested_user_id
+        } else {
+            // Check for delegation
+            if let Some(delegation) = check_delegation(&state.pool, requested_user_id, session.0.id).await? {
+                if !delegation.can_message {
+                    return Err(AppError::AuthError(
+                        "You don't have permission to view this user's conversations".into(),
+                    ));
+                }
+                requested_user_id
+            } else {
+                return Err(AppError::AuthError(
+                    "You don't have delegation from this user".into(),
+                ));
+            }
+        }
+    } else {
+        // No filter - return current user's conversations
+        session.0.id
+    };
+
+    let conversations = get_user_conversations(&state.pool, user_id).await?;
+    Ok((StatusCode::OK, Json(conversations)).into_response())
 }

@@ -675,3 +675,50 @@ pub async fn delete_delegation(pool: &SqlitePool, owner_id: Uuid, delegate_id: U
     .await?;
     Ok(())
 }
+
+// ====== User Search Functions ======
+
+pub async fn search_users(pool: &SqlitePool, query: &str) -> Result<Vec<User>> {
+    let search_pattern = format!("%{}%", query);
+    let users = sqlx::query_as!(
+        User,
+        r#"
+        SELECT 
+            id AS "id: _",
+            username,
+            password,
+            created_at AS "created_at: _",
+            updated_at AS "updated_at: _"
+        FROM users
+        WHERE username LIKE ?
+        ORDER BY username
+        LIMIT 20
+        "#,
+        search_pattern
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(users)
+}
+
+pub async fn get_all_users(pool: &SqlitePool, limit: i64, offset: i64) -> Result<Vec<User>> {
+    let users = sqlx::query_as!(
+        User,
+        r#"
+        SELECT 
+            id AS "id: _",
+            username,
+            password,
+            created_at AS "created_at: _",
+            updated_at AS "updated_at: _"
+        FROM users
+        ORDER BY username
+        LIMIT ? OFFSET ?
+        "#,
+        limit,
+        offset
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(users)
+}

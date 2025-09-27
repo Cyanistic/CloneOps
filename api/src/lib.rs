@@ -122,9 +122,12 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             users::register,
             users::login,
             users::get_profile,
+            users::search_users_handler,
+            users::get_user_handler,
             agents::enhance_prompt,
             agents::research_prompt,
             messaging::create_conversation_handler,
+            messaging::list_conversations_handler,
             messaging::send_message_handler,
             messaging::edit_conversation_handler,
             messaging::add_users_to_conversation_handler,
@@ -247,9 +250,12 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::register))
         .routes(routes!(users::login))
         .routes(routes!(users::get_profile))
+        .routes(routes!(users::search_users_handler))
+        .routes(routes!(users::get_user_handler))
         .routes(routes!(agents::enhance_prompt))
         .routes(routes!(agents::research_prompt))
         .routes(routes!(messaging::create_conversation_handler))
+        .routes(routes!(messaging::list_conversations_handler))
         .routes(routes!(messaging::send_message_handler))
         .routes(routes!(messaging::edit_conversation_handler))
         .routes(routes!(messaging::add_users_to_conversation_handler))
