@@ -77,16 +77,22 @@ pub async fn login(
     }
 
     let session = create_session(&state.pool, user.id).await?;
+    
+    // For development with cross-origin requests (localhost:3000 -> localhost:6969)
+    // In production, you'd want Secure=true and proper domain settings
     Ok((
         StatusCode::OK,
         AppendHeaders([
             (
                 SET_COOKIE,
-                format!("session={}; HttpOnly; Max-Age=34560000", session.id),
+                format!(
+                    "session={}; HttpOnly; Max-Age=34560000; Path=/; SameSite=Lax",
+                    session.id
+                ),
             ),
             (
                 SET_COOKIE,
-                "authenticated=true; Max-Age=34560000; Path=/".to_string(),
+                "authenticated=true; Max-Age=34560000; Path=/; SameSite=Lax".to_string(),
             ),
         ]),
     )
