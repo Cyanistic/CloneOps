@@ -40,11 +40,13 @@ use utoipa::{
     Modify, OpenApi,
     openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
 };
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 use utoipa_swagger_ui::SwaggerUi;
 
+mod entities;
 mod error;
 mod state;
+mod users;
 
 use crate::{error::Result, state::AppState};
 
@@ -111,6 +113,7 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
 #[openapi(
         modifiers(&SecurityAddon),
         paths(
+            users::register
         ),
         tags(
             (name = "users", description = "User related operations"),
@@ -200,8 +203,8 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
     // Setup the router along with the OpenApi documentation router
     // for easy docs generation.
     let (api_router, open_api): (Router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(users::register))
         .route_layer(DefaultBodyLimit::max(1_000_000_000))
-        .nest_service("/api/avatars/", ServeDir::new(&*AVATAR_DIR))
         .layer(cors)
         .with_state(state)
         .split_for_parts();
