@@ -4,11 +4,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
 };
 use std::{
-    env::{self, temp_dir},
-    io::ErrorKind,
-    path::PathBuf,
-    str::FromStr,
-    sync::LazyLock,
+    env::{self, temp_dir}, fs::File, io::ErrorKind, path::PathBuf, str::FromStr, sync::LazyLock
 };
 
 /// Build file for migration scripts to ensure that the compile-time
@@ -18,33 +14,39 @@ async fn run_migrations() -> Result<()> {
     dotenvy::dotenv().ok();
 
     // Get DATABASE_URL from environment, then .env, then fallback
-    let db_file = match env::var("DATABASE_URL") {
+    let db_url = match env::var("DATABASE_URL") {
         Ok(k) => k,
         Err(_) => {
             let default_db_path = temp_dir().join("cloneops-build.db");
             let mut db_url = default_db_path.display().to_string();
             println!("cargo:warning=DATABASE_URL not found in .env, using default: {db_url}");
-            // Calling `display` on a Windows path will produce a string with backslashes
-            // as path separators, which is not valid for a SQLite URL. So we need to replace them with forward slashes
-            // We also need to add a leading slash to the path since Windows drive letters do not
-            // have a leading slash
+            // On Windows, convert backslashes to forward slashes for the URL.
             if cfg!(windows) {
-                db_url = format!("/{}", db_url.replace('\\', "/"));
+                db_url = db_url.replace('\\', "/");
             }
-            format!("sqlite://{db_url}")
+            format!("sqlite:{db_url}")
         }
     };
 
-    println!("cargo:rustc-env=DATABASE_URL={db_file}"); // Make it available to the crate
+    println!("cargo:rustc-env=DATABASE_URL={db_url}"); // Make it available to the crate
 
-    let db_path = PathBuf::from(if let Some(path) = db_file.strip_prefix("file:") {
-        path
-    } else if let Some(path) = db_file.strip_prefix("sqlite:") {
+    // Strip the scheme from the URL to get a valid file path.
+    // This needs to handle different URL formats and OS-specific path details.
+    let path_str = if let Some(path) = db_url.strip_prefix("sqlite://") {
+        // If on windows and path is like /C:/... remove the leading slash
+        if cfg!(windows) {
+            path.strip_prefix('/').unwrap_or(path)
+        } else {
+            path
+        }
+    } else if let Some(path) = db_url.strip_prefix("sqlite:") {
         path
     } else {
         // If no prefix, assume it's a raw path, which sqlx treats as sqlite:
-        db_file.as_str()
-    });
+        db_url.as_str()
+    };
+
+    let db_path = PathBuf::from(path_str);
 
     match std::fs::remove_file(&db_path) {
         // Only return an error if it doesn't talk about the file not existing
@@ -56,7 +58,7 @@ async fn run_migrations() -> Result<()> {
     }
 
     let pool: Pool<Sqlite> = Pool::connect_lazy_with(
-        SqliteConnectOptions::from_str(&db_file)?
+        SqliteConnectOptions::from_str(&db_url)?
             .foreign_keys(false) // Disable during migration due to table creation order
             .create_if_missing(true)
             .journal_mode(SqliteJournalMode::Wal)
