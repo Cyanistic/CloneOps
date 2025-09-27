@@ -1,4 +1,5 @@
 use axum::http::StatusCode;
+use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, prelude::FromRow};
@@ -29,12 +30,19 @@ pub struct Session {
 
 pub async fn create_user(pool: &SqlitePool, user: &CreateUser) -> Result<User> {
     let id = Uuid::new_v4();
+    // Hash the password before storing it
+    let hashed_password = hash(&user.password, DEFAULT_COST)
+        .map_err(|_| AppError::UserError((
+            LossyError(StatusCode::INTERNAL_SERVER_ERROR),
+            "Failed to hash password".into(),
+        )))?;
+    
     let Some(user) = sqlx::query_as!(
         User,
         r#"INSERT INTO users (id, username, password) VALUES (?, ?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
         id,
         user.username,
-        user.password
+        hashed_password
     )
     .fetch_optional(pool)
     .await?

@@ -52,19 +52,32 @@ pub struct LoginUser {
         (status = UNAUTHORIZED, description = "Invalid username or password", body = ErrorResponse)
     )
 )]
-pub async fn login(State(state): State<AppState>, Json(user): Json<LoginUser>) -> Result<Response> {
-    let Some(user) = get_user(&state.pool, user.username).await? else {
+pub async fn login(State(state): State<AppState>, Json(login_user): Json<LoginUser>) -> Result<Response> {
+    let Some(user) = get_user(&state.pool, login_user.username).await? else {
         return Err(AppError::UserError((
             LossyError(StatusCode::NOT_FOUND),
             "User not found".into(),
         )));
     };
-    if user.password != user.password {
-        return Err(AppError::UserError((
-            LossyError(StatusCode::UNAUTHORIZED),
-            "Invalid username or password".into(),
-        )));
+    
+    // Verify the provided password against the hashed password
+    match verify(&login_user.password, &user.password) {
+        Ok(valid) => {
+            if !valid {
+                return Err(AppError::UserError((
+                    LossyError(StatusCode::UNAUTHORIZED),
+                    "Invalid username or password".into(),
+                )));
+            }
+        }
+        Err(_) => {
+            return Err(AppError::UserError((
+                LossyError(StatusCode::UNAUTHORIZED),
+                "Invalid username or password".into(),
+            )));
+        }
     }
+    
     let session = create_session(&state.pool, user.id).await?;
     Ok((
         StatusCode::OK,

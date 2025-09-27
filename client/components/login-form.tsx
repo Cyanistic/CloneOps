@@ -2,26 +2,19 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Eye, EyeOff, Shield, User } from "lucide-react"
+import { apiClient } from "@/lib/api"
 
 export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [registeredUsers, setRegisteredUsers] = useState<string[]>([])
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    const stored = localStorage.getItem("cloneops-users")
-    if (stored) {
-      setRegisteredUsers(JSON.parse(stored))
-    }
-  }, [])
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,23 +23,17 @@ export function LoginForm() {
 
     const formData = new FormData(e.target as HTMLFormElement)
     const username = formData.get("username") as string
+    const password = formData.get("password") as string
 
-    // Check if username exists
-    if (!registeredUsers.includes(username.toLowerCase())) {
-      setError("Username not found. Please sign up first.")
+    try {
+      await apiClient.login({ username, password })
+      // Redirect to dashboard
+      window.location.href = "/dashboard"
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed")
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    // Simulate authentication
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Store current user
-    localStorage.setItem("cloneops-current-user", username)
-    setIsLoading(false)
-
-    // Redirect to dashboard
-    window.location.href = "/dashboard"
   }
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -66,26 +53,15 @@ export function LoginForm() {
       return
     }
 
-    // Check if username already exists
-    if (registeredUsers.includes(username.toLowerCase())) {
-      setError("Username already exists. Please choose a different one.")
+    try {
+      await apiClient.register({ username, password })
+      // Redirect to dashboard after successful registration
+      window.location.href = "/dashboard"
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed")
+    } finally {
       setIsLoading(false)
-      return
     }
-
-    // Simulate account creation
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    // Add username to registered users
-    const updatedUsers = [...registeredUsers, username.toLowerCase()]
-    setRegisteredUsers(updatedUsers)
-    localStorage.setItem("cloneops-users", JSON.stringify(updatedUsers))
-    localStorage.setItem("cloneops-current-user", username)
-
-    setIsLoading(false)
-
-    // Redirect to dashboard
-    window.location.href = "/dashboard"
   }
 
   return (
@@ -223,12 +199,6 @@ export function LoginForm() {
           <Shield className="h-4 w-4 mr-2" />
           <span>Secured with enterprise-grade encryption</span>
         </div>
-
-        {registeredUsers.length > 0 && (
-          <div className="mt-4 text-center text-xs text-muted-foreground">
-            {registeredUsers.length} user{registeredUsers.length !== 1 ? "s" : ""} registered
-          </div>
-        )}
       </CardContent>
     </Card>
   )
