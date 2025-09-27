@@ -151,6 +151,40 @@ class ApiClient {
 
     return await response.json();
   }
+
+  async enhancePrompt(prompt: string): Promise<{ output: string }> {
+    const response = await fetch(`${this.baseUrl}/api/agents/enhance_prompt`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  async researchPrompt(prompt: string): Promise<{ output: string }> {
+    const response = await fetch(`${this.baseUrl}/api/agents/research_prompt`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  }
 }
 
 export const apiClient = new ApiClient();

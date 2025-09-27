@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Bot, Sparkles, X, Upload } from "lucide-react"
+import { Calendar, Bot, Sparkles, X, Upload, Wrench, Search } from "lucide-react"
+import { apiClient } from "@/lib/api"
 
 interface PostComposerProps {
   onNewPost?: (post: any) => void
@@ -20,6 +21,7 @@ export function PostComposer({ onNewPost }: PostComposerProps) {
   const [scheduledTime, setScheduledTime] = useState("")
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const agents = [
@@ -92,6 +94,36 @@ export function PostComposer({ onNewPost }: PostComposerProps) {
     setPostContent(randomCaption)
   }
 
+  const enhancePrompt = async () => {
+    if (!postContent.trim()) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await apiClient.enhancePrompt(postContent);
+      setPostContent(response.output);
+    } catch (error) {
+      console.error("Error enhancing prompt:", error);
+      // Optional: Show error to user
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const researchPrompt = async () => {
+    if (!postContent.trim()) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await apiClient.researchPrompt(postContent);
+      setPostContent(response.output);
+    } catch (error) {
+      console.error("Error researching prompt:", error);
+      // Optional: Show error to user
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <Card className="border-border bg-card">
       <CardHeader>
@@ -147,10 +179,30 @@ export function PostComposer({ onNewPost }: PostComposerProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium">Post Content</label>
-            <Button variant="outline" size="sm" onClick={generateCaption}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Generate Caption
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={generateCaption}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Caption
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={enhancePrompt}
+                disabled={isLoading}
+              >
+                <Wrench className="h-4 w-4 mr-2" />
+                Enhance Prompt
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={researchPrompt}
+                disabled={isLoading}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Research Prompt
+              </Button>
+            </div>
           </div>
           <Textarea
             placeholder="What's on your mind?"

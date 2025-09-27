@@ -4,12 +4,11 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous},
 };
 use std::{
-    env::{self, temp_dir},
+    env,
     fs::File,
     io::ErrorKind,
     path::PathBuf,
     str::FromStr,
-    sync::LazyLock,
 };
 
 /// Build file for migration scripts to ensure that the compile-time
@@ -22,14 +21,14 @@ async fn run_migrations() -> Result<()> {
     let db_url = match env::var("DATABASE_URL") {
         Ok(k) => k,
         Err(_) => {
-            let default_db_path = temp_dir().join("cloneops-build.db");
+            let default_db_path = env::current_dir().unwrap().join("cloneops.db");
             let mut db_url = default_db_path.display().to_string();
             println!("cargo:warning=DATABASE_URL not found in .env, using default: {db_url}");
             // On Windows, convert backslashes to forward slashes for the URL.
             if cfg!(windows) {
                 db_url = db_url.replace('\\', "/");
             }
-            format!("sqlite:{db_url}")
+            format!("sqlite:{}", db_url)
         }
     };
 

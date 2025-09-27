@@ -82,11 +82,11 @@ pub struct ChatMessageWithMetadata {
 }
 
 pub async fn create_user(pool: &SqlitePool, user: &CreateUser) -> Result<User> {
-    let id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
     let Some(user) = sqlx::query_as!(
         User,
-        r#"INSERT OR IGNORE INTO users (id, username, password) VALUES (?, ?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
-        id,
+        r#"INSERT INTO users (id, username, password) VALUES (?, ?, ?) RETURNING id AS "id: _", username, password, created_at AS "created_at: _", updated_at AS "updated_at: _""#,
+        user_id,
         user.username,
         user.password
     )
