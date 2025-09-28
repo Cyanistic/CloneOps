@@ -43,6 +43,8 @@ const getRoleIcon = (role: string) => {
 // Context for managing the currently active account
 interface AccountContextType {
   activeAccount: User | null;
+  mainAccount: User | null;
+  isManagingOtherAccount: boolean;
   setActiveAccount: (user: User | null) => void;
   delegateToAccount: (user: User) => void;
   returnToMainAccount: () => void;
@@ -54,22 +56,28 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [activeAccount, setActiveAccount] = useState<User | null>(null);
   const session = useSession();
 
+  const mainAccount = session.user;
+
   const delegateToAccount = (user: User) => {
     setActiveAccount(user);
   };
 
   const returnToMainAccount = () => {
-    setActiveAccount(session.user || null);
+    setActiveAccount(mainAccount || null);
   };
 
   useEffect(() => {
     // Initialize with main account
-    setActiveAccount(session.user || null);
-  }, [session.user]);
+    setActiveAccount(mainAccount || null);
+  }, [mainAccount]);
+
+  const isManagingOtherAccount = activeAccount?.id !== mainAccount?.id;
 
   return (
     <AccountContext.Provider value={{ 
       activeAccount, 
+      mainAccount,
+      isManagingOtherAccount,
       setActiveAccount, 
       delegateToAccount, 
       returnToMainAccount 
@@ -106,6 +114,9 @@ export function AccessControls() {
   const [isLoadingReceivedDelegations, setIsLoadingReceivedDelegations] = useState(true);
   const [activeTab, setActiveTab] = useState<'grant' | 'manage'>('grant'); // 'grant' for granting permissions, 'manage' for managing delegated accounts
 
+  // State to store user details for display
+  const [userDetails, setUserDetails] = useState<Record<string, User>>({});
+
   // Load delegations on component mount
   useEffect(() => {
     if (user) {
@@ -137,6 +148,42 @@ export function AccessControls() {
       setIsLoadingReceivedDelegations(false);
     }
   };
+
+  // Function to fetch and cache user details
+  const fetchUserDetails = async (userIds: string[]) => {
+    const newDetails = { ...userDetails };
+    const userIdsToFetch = userIds.filter(id => !newDetails[id]);
+
+    if (userIdsToFetch.length === 0) return;
+
+    for (const userId of userIdsToFetch) {
+      try {
+        const response = await API.api.getUserHandler(userId);
+        newDetails[userId] = response.data;
+      } catch (error) {
+        console.error(`Error fetching user ${userId}:`, error);
+        newDetails[userId] = {
+          id: userId,
+          username: "Unknown User",
+          createdAt: "",
+          updatedAt: ""
+        };
+      }
+    }
+
+    setUserDetails(newDetails);
+  };
+
+  // Fetch user details when delegations change
+  useEffect(() => {
+    const allUserIds = [
+      ...delegations.map(d => d.delegateId),
+      ...receivedDelegations.map(d => d.ownerId)
+    ];
+    if (allUserIds.length > 0) {
+      fetchUserDetails(allUserIds);
+    }
+  }, [delegations, receivedDelegations]);
 
   const handleSearchUsers = async () => {
     if (!searchQuery.trim()) {
@@ -218,45 +265,6 @@ export function AccessControls() {
       console.error("Error revoking delegation:", error);
     }
   };
-
-  // State to store user details for display
-  const [userDetails, setUserDetails] = useState<Record<string, User>>({});
-
-  // Function to fetch and cache user details
-  const fetchUserDetails = async (userIds: string[]) => {
-    const newDetails = { ...userDetails };
-    const userIdsToFetch = userIds.filter(id => !newDetails[id]);
-
-    if (userIdsToFetch.length === 0) return;
-
-    for (const userId of userIdsToFetch) {
-      try {
-        const response = await API.api.getUserHandler(userId);
-        newDetails[userId] = response.data;
-      } catch (error) {
-        console.error(`Error fetching user ${userId}:`, error);
-        newDetails[userId] = {
-          id: userId,
-          username: "Unknown User",
-          createdAt: "",
-          updatedAt: ""
-        };
-      }
-    }
-
-    setUserDetails(newDetails);
-  };
-
-  // Fetch user details when delegations change
-  useEffect(() => {
-    const allUserIds = [
-      ...delegations.map(d => d.delegateId),
-      ...receivedDelegations.map(d => d.ownerId)
-    ];
-    if (allUserIds.length > 0) {
-      fetchUserDetails(allUserIds);
-    }
-  }, [delegations, receivedDelegations]);
 
   // Update search when query changes
   useEffect(() => {
@@ -571,8 +579,16 @@ export function AccessControls() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          // In a real implementation, this would either:
+                          // 1. Navigate to a profile management page for the selected account
+                          // 2. Update the global context to operate on behalf of the selected account
+                          // 3. Update API calls to include delegation parameters
+                          
+                          // For now, we'll just update the context and show a message
                           delegateToAccount(ownerDetail);
-                          // This would trigger context switching to the selected account
+                          
+                          // Show a message confirming the account switch
+                          alert(`Switched to managing: ${ownerDetail.username}\nYou now have access to manage this account with the permissions granted (${delegation.canPost ? 'Posts' : ''}${delegation.canMessage ? (delegation.canPost ? ', ' : '') + 'Messages' : ''}${delegation.canDeletePosts ? ((delegation.canPost || delegation.canMessage) ? ', ' : '') + 'Delete Posts' : ''}). In the full application, you would be able to perform actions on behalf of this user.`);
                         }}
                       >
                         <LogIn className="h-4 w-4 mr-1" />
