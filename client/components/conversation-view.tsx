@@ -15,10 +15,11 @@ import { useSession } from "@/components/session-provider";
 
 interface Conversation {
   id: string;
-  title?: string;
-  lastMessageId?: string;
+  title?: string | null;
+  lastMessageId?: string | null;
   createdAt: string;
   updatedAt: string;
+  participants?: string[]; // Added to track conversation participants
 }
 
 interface Message {
@@ -42,6 +43,43 @@ const mockParticipants: Participant[] = [
   { id: "3", name: "Mike Creator", avatar: "/placeholder.svg" },
 ];
 
+// Helper function to extract text content from structured message format
+const extractTextFromContent = (content: string): string => {
+  try {
+    // Parse the content string as JSON
+    const parsedContent = JSON.parse(content);
+    
+    // If it's an array of content objects
+    if (Array.isArray(parsedContent)) {
+      // Find text content and return it
+      const textContent = parsedContent
+        .filter((item: any) => item.type === "text")
+        .map((item: any) => item.text)
+        .join(" ");
+      
+      return textContent || content; // Return extracted text or original if no text found
+    } 
+    // If it's a single object
+    else if (typeof parsedContent === 'object' && parsedContent.type === "text") {
+      return parsedContent.text || content;
+    }
+  } catch (e) {
+    // If parsing fails, return the original content
+    return content;
+  }
+  
+  // If content is not in the expected format, return it as is
+  return content;
+};
+
+// Helper function to get participant count
+const getParticipantCount = (conversation: Conversation) => {
+  if (conversation.participants) {
+    return conversation.participants.length;
+  }
+  return 0;
+};
+
 export function ConversationView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -52,6 +90,7 @@ export function ConversationView() {
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [invitedUsername, setInvitedUsername] = useState("");
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [allParticipants, setAllParticipants] = useState<any[]>([]);
   const { user } = useSession(); // Get the current user from session
   const { events } = useRealtimeEvents();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -60,7 +99,7 @@ export function ConversationView() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch from the API
+        // Fetch from the API - use the endpoint that returns conversation with participants
         const response = await API.api.listConversationsHandler();
         const fetchedConversations = response.data;
         
@@ -224,10 +263,10 @@ export function ConversationView() {
       const newMsg: Message = {
         id: Date.now().toString(),
         conversationId: selectedConversation.id,
-        senderId: "1", // Current user
+        senderId: user?.id || "1", // Current user
         content: newMessage,
         createdAt: new Date().toISOString(),
-        senderName: "Current User",
+        senderName: user?.username || user?.name || "Current User",
       };
 
       setMessages(prev => [...prev, newMsg]);
@@ -319,8 +358,9 @@ export function ConversationView() {
     
     try {
       // Get the last few messages to provide context for the AI
+      // Use the actual messages state instead of a fallback
       const contextMessages = messages.slice(-3).map(msg => 
-        `${msg.senderName}: ${msg.content}`
+        `${msg.senderName || 'Unknown'}: ${msg.content}`
       ).join('\n');
       
       // In a real implementation, this would call the API to generate a response
@@ -461,7 +501,7 @@ export function ConversationView() {
                 onClick={() => setSelectedConversation(conversation)}
               >
                 <h3 className="font-medium truncate">
-                  {conversation.title || `Conversation ${conversation.id}`}
+                  {conversation.title || `Conversation with ${conversation.participants?.length || 0} participants`}
                 </h3>
                 <p className="text-xs text-muted-foreground truncate">
                   {conversation.updatedAt}
@@ -481,39 +521,41 @@ export function ConversationView() {
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    <span>{selectedConversation.title || "Untitled Conversation"}</span>
+                    <span>{selectedConversation.title || `Conversation with ${selectedConversation.participants?.length || 0} participants`}</span>
                   </div>
                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
                     <Users className="h-4 w-4" />
-                    <span>{mockParticipants.length} participants</span>
+                    <span>{getParticipantCount(selectedConversation)} participants</span>
                   </div>
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex-grow flex flex-col">
                 <ScrollArea className="flex-grow mb-4" ref={scrollAreaRef}>
                   <div className="space-y-4">
-                    {messages.map(message => (
+                    {messages.slice().reverse().map(message => (
                       <div
                         key={message.id}
-                        className={`flex ${message.senderId === "1" ? "justify-end" : "justify-start"}`}
+                        className={`flex ${message.senderId === user?.id ? "justify-end" : "justify-start"}`}
                       >
                         <div
                           className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                            message.senderId === "1"
+                            message.senderId === user?.id
                               ? "bg-primary text-primary-foreground rounded-br-none"
                               : "bg-muted rounded-bl-none"
                           }`}
                         >
-                          {message.senderId !== "1" && (
+                          {/* Show sender info for all messages except the current user */}
+                          {message.senderId !== user?.id && message.senderName && (
                             <div className="flex items-center gap-2 mb-1">
                               <Avatar className="h-6 w-6">
                                 <AvatarImage src={mockParticipants.find(p => p.id === message.senderId)?.avatar} alt={message.senderName} />
+
                                 <AvatarFallback>{message.senderName?.charAt(0)}</AvatarFallback>
                               </Avatar>
                               <span className="text-xs font-medium">{message.senderName}</span>
                             </div>
                           )}
-                          <p>{message.content}</p>
+                          <p>{extractTextFromContent(message.content)}</p>
                           <p className="text-xs opacity-70 mt-1">
                             {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>

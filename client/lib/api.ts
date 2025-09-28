@@ -1,9 +1,7 @@
 import { Api } from "../Api";
 
 export const BASE_URL =
-  process.env.NODE_ENV === "development"
-    ? "http://localhost:6969"
-    : "";
+  process.env.NODE_ENV === "development" ? "http://localhost:6969" : "";
 
 export const API = new Api({
   baseUrl: BASE_URL,

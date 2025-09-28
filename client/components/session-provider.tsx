@@ -41,8 +41,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       // If we get 200, user is authenticated
       // If we get 401, user is not authenticated
-      if (response.ok) {
+      if (response.status < 400) {
         setIsAuthenticated(true);
+        setUser(response.data); // Set user data when session is valid
       } else if (response.status === 401) {
         setIsAuthenticated(false);
         setUser(null);
@@ -58,10 +59,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     await API.api.login({ username, password });
+    // After successful login, fetch the user profile to set user data
+    const profileResponse = await API.api.getProfile();
+    if (profileResponse.status < 400) { // Success status
+      setUser(profileResponse.data);
+    }
     setIsAuthenticated(true);
-    // Optionally fetch user data after login
-    // const userData = await fetchUser();
-    // setUser(userData);
   };
 
   const register = async (username: string, password: string) => {
