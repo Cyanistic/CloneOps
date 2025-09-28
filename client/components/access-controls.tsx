@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Users, UserCheck, UserX, Settings, Crown, UserPlus, Search, Trash2, ShieldAlert, LogIn } from "lucide-react"
 import { API } from "@/lib/api"
 import { useSession } from "@/components/session-provider"
+import { useRouter } from "next/navigation"
 
 interface User {
   id: string;
@@ -98,6 +99,7 @@ export function useAccount() {
 export function AccessControls() {
   const { user } = useSession();
   const { delegateToAccount } = useAccount();
+  const router = useRouter();
   const [delegations, setDelegations] = useState<Delegation[]>([]);
   const [receivedDelegations, setReceivedDelegations] = useState<Delegation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -579,16 +581,11 @@ export function AccessControls() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          // In a real implementation, this would either:
-                          // 1. Navigate to a profile management page for the selected account
-                          // 2. Update the global context to operate on behalf of the selected account
-                          // 3. Update API calls to include delegation parameters
-                          
-                          // For now, we'll just update the context and show a message
+                          // Update the context to indicate we're now managing this account
                           delegateToAccount(ownerDetail);
                           
-                          // Show a message confirming the account switch
-                          alert(`Switched to managing: ${ownerDetail.username}\nYou now have access to manage this account with the permissions granted (${delegation.canPost ? 'Posts' : ''}${delegation.canMessage ? (delegation.canPost ? ', ' : '') + 'Messages' : ''}${delegation.canDeletePosts ? ((delegation.canPost || delegation.canMessage) ? ', ' : '') + 'Delete Posts' : ''}). In the full application, you would be able to perform actions on behalf of this user.`);
+                          // Redirect to the user's profile page to manage their account
+                          router.push(`/profile/${ownerDetail.id}`);
                         }}
                       >
                         <LogIn className="h-4 w-4 mr-1" />
