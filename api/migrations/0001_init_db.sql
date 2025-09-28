@@ -74,6 +74,7 @@ CREATE TABLE delegations (
     delegate_id BLOB NOT NULL,
     can_post BOOLEAN NOT NULL DEFAULT 1,
     can_message BOOLEAN NOT NULL DEFAULT 1,
+    can_delete_posts BOOLEAN NOT NULL DEFAULT 0,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (owner_id, delegate_id),
     FOREIGN KEY (owner_id) REFERENCES users(id),

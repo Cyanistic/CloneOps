@@ -43,6 +43,7 @@ pub struct CreateDelegationRequest {
     pub delegate_id: Uuid,
     pub can_post: bool,
     pub can_message: bool,
+    pub can_delete_posts: bool,
 }
 
 // ====== Post Endpoints ======
@@ -158,6 +159,7 @@ pub async fn create_delegation_handler(
         payload.delegate_id,
         payload.can_post,
         payload.can_message,
+        payload.can_delete_posts,
     )
     .await?;
 

@@ -129,6 +129,7 @@ export interface CreateConversationRequest {
 }
 
 export interface CreateDelegationRequest {
+  canDeletePosts: boolean;
   canMessage: boolean;
   canPost: boolean;
   /** @format uuid */
@@ -145,6 +146,7 @@ export interface CreateUser {
 }
 
 export interface Delegation {
+  canDeletePosts: boolean;
   canMessage: boolean;
   canPost: boolean;
   /** @format date-time */
@@ -975,6 +977,22 @@ export class Api<
         method: "POST",
         body: data,
         type: ContentType.Json,
+        ...params,
+      }),
+
+    /**
+     * No description
+     *
+     * @tags users
+     * @name DeleteUserHandler
+     * @request DELETE:/api/users/me
+     * @secure
+     */
+    deleteUserHandler: (params: RequestParams = {}) =>
+      this.request<void, void>({
+        path: `/api/users/me`,
+        method: "DELETE",
+        secure: true,
         ...params,
       }),
 

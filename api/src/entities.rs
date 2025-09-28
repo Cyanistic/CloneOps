@@ -108,6 +108,7 @@ pub struct Delegation {
     pub delegate_id: Uuid,
     pub can_post: bool,
     pub can_message: bool,
+    pub can_delete_posts: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -551,6 +552,7 @@ pub async fn get_user_posts(pool: &SqlitePool, user_id: Uuid) -> Result<Vec<Post
 }
 
 pub async fn delete_post(pool: &SqlitePool, post_id: Uuid, user_id: Uuid) -> Result<()> {
+    // First check if the user is the owner or creator of the post
     let result = sqlx::query!(
         "DELETE FROM posts WHERE id = ? AND (user_id = ? OR created_by = ?)",
         post_id,
@@ -561,6 +563,34 @@ pub async fn delete_post(pool: &SqlitePool, post_id: Uuid, user_id: Uuid) -> Res
     .await?;
 
     if result.rows_affected() == 0 {
+        // Check if the user has delegation permission to delete posts for the owner
+        let post = sqlx::query!(
+            "SELECT user_id AS \"user_id: Uuid\" FROM posts WHERE id = ?",
+            post_id
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(post) = post {
+            // Check if this user has delegation to delete posts for the post owner
+            if let Some(delegation) = check_delegation(pool, post.user_id, user_id).await? {
+                if delegation.can_delete_posts {
+                    // User has delegation to delete posts, so delete the post
+                    let result = sqlx::query!(
+                        "DELETE FROM posts WHERE id = ? AND user_id = ?",
+                        post_id,
+                        post.user_id
+                    )
+                    .execute(pool)
+                    .await?;
+
+                    if result.rows_affected() == 0 {
+                        return Err(AppError::AuthError("Post not found".into()));
+                    }
+                    return Ok(());
+                }
+            }
+        }
         return Err(AppError::AuthError("Post not found or unauthorized".into()));
     }
     Ok(())
@@ -574,23 +604,26 @@ pub async fn create_delegation(
     delegate_id: Uuid,
     can_post: bool,
     can_message: bool,
+    can_delete_posts: bool,
 ) -> Result<Delegation> {
     let delegation = sqlx::query_as!(
         Delegation,
         r#"
-        INSERT INTO delegations (owner_id, delegate_id, can_post, can_message)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO delegations (owner_id, delegate_id, can_post, can_message, can_delete_posts)
+        VALUES (?, ?, ?, ?, ?)
         RETURNING 
             owner_id AS "owner_id: _",
             delegate_id AS "delegate_id: _",
             can_post,
             can_message,
+            can_delete_posts,
             created_at AS "created_at: _"
         "#,
         owner_id,
         delegate_id,
         can_post,
-        can_message
+        can_message,
+        can_delete_posts
     )
     .fetch_one(pool)
     .await?;
@@ -606,6 +639,7 @@ pub async fn get_user_delegations(pool: &SqlitePool, owner_id: Uuid) -> Result<V
             delegate_id AS "delegate_id: _",
             can_post,
             can_message,
+            can_delete_posts,
             created_at AS "created_at: _"
         FROM delegations
         WHERE owner_id = ?
@@ -629,6 +663,7 @@ pub async fn get_delegated_to_user(
             delegate_id AS "delegate_id: _",
             can_post,
             can_message,
+            can_delete_posts,
             created_at AS "created_at: _"
         FROM delegations
         WHERE delegate_id = ?
@@ -653,6 +688,7 @@ pub async fn check_delegation(
             delegate_id AS "delegate_id: _",
             can_post,
             can_message,
+            can_delete_posts,
             created_at AS "created_at: _"
         FROM delegations
         WHERE owner_id = ? AND delegate_id = ?
