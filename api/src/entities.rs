@@ -722,3 +722,90 @@ pub async fn get_all_users(pool: &SqlitePool, limit: i64, offset: i64) -> Result
     .await?;
     Ok(users)
 }
+
+// ====== Read Tracking Functions ======
+
+pub async fn mark_conversation_as_read(
+    pool: &SqlitePool,
+    user_id: Uuid,
+    conversation_id: Uuid,
+) -> Result<()> {
+    sqlx::query!(
+        r#"
+        UPDATE conversation_participants
+        SET last_read_at = CURRENT_TIMESTAMP
+        WHERE user_id = ? AND conversation_id = ?
+        "#,
+        user_id,
+        conversation_id
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn get_last_read_time(
+    pool: &SqlitePool,
+    user_id: Uuid,
+    conversation_id: Uuid,
+) -> Result<Option<DateTime<Utc>>> {
+    let result = sqlx::query!(
+        r#"
+        SELECT last_read_at AS "last_read_at: DateTime<Utc>"
+        FROM conversation_participants
+        WHERE user_id = ? AND conversation_id = ?
+        "#,
+        user_id,
+        conversation_id
+    )
+    .fetch_optional(pool)
+    .await?;
+    
+    Ok(result.and_then(|r| r.last_read_at))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UnreadMessage {
+    pub id: Uuid,
+    pub conversation_id: Uuid,
+    pub sender_id: Uuid,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub conversation_title: Option<String>,
+    pub sender_username: String,
+}
+
+pub async fn get_unread_messages(
+    pool: &SqlitePool,
+    user_id: Uuid,
+) -> Result<Vec<UnreadMessage>> {
+    let messages = sqlx::query_as!(
+        UnreadMessage,
+        r#"
+        SELECT 
+            m.id AS "id: _",
+            m.conversation_id AS "conversation_id: _",
+            m.sender_id AS "sender_id: _",
+            m.content,
+            m.created_at AS "created_at: _",
+            c.title AS "conversation_title",
+            u.username AS "sender_username!"
+        FROM messages m
+        JOIN conversations c ON m.conversation_id = c.id
+        JOIN conversation_participants cp ON cp.conversation_id = c.id
+        JOIN users u ON m.sender_id = u.id
+        WHERE cp.user_id = ?
+        AND m.sender_id != ?
+        AND (cp.last_read_at IS NULL OR DATETIME(m.created_at) > DATETIME(cp.last_read_at))
+        ORDER BY DATETIME(m.created_at) DESC
+        LIMIT 100
+        "#,
+        user_id,
+        user_id
+    )
+    .fetch_all(pool)
+    .await?;
+    
+    Ok(messages)
+}

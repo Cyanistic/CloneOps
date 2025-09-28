@@ -135,6 +135,9 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             messaging::get_conversation_handler,
             messaging::get_messages_handler,
             messaging::get_categorized_messages_handler,
+            messaging::mark_conversation_read_handler,
+            messaging::get_unread_messages_handler,
+            messaging::get_messages_with_status_handler,
             posts::create_post_handler,
             posts::get_posts_handler,
             posts::delete_post_handler,
@@ -156,7 +159,9 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
                 entities::ChatMessageWithMetadata,
                 entities::Post,
                 entities::Delegation,
+                entities::UnreadMessage,
                 posts::FeedResponse,
+                messaging::MessageWithReadStatus,
             )
         ),
         tags(
@@ -264,6 +269,9 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(messaging::get_conversation_handler))
         .routes(routes!(messaging::get_messages_handler))
         .routes(routes!(messaging::get_categorized_messages_handler))
+        .routes(routes!(messaging::mark_conversation_read_handler))
+        .routes(routes!(messaging::get_unread_messages_handler))
+        .routes(routes!(messaging::get_messages_with_status_handler))
         .routes(routes!(posts::create_post_handler))
         .routes(routes!(posts::get_posts_handler))
         .routes(routes!(posts::delete_post_handler))

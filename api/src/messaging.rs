@@ -15,11 +15,12 @@ use crate::{
     auth::SessionAuth,
     entities::{
         ChatMessage, ChatMessageWithMetadata, Conversation, ConversationWithParticipants,
-        add_users_to_conversation, categorize_message, check_delegation, create_chat_message,
-        create_conversation, get_chat_messages, get_conversation, get_conversation_messages,
-        get_conversation_messages_chronological, get_conversation_participants,
-        get_conversation_with_participants, get_user_conversations, is_user_in_conversation,
-        update_conversation_title,
+        UnreadMessage, add_users_to_conversation, categorize_message, check_delegation,
+        create_chat_message, create_conversation, get_chat_messages, get_conversation,
+        get_conversation_messages, get_conversation_messages_chronological,
+        get_conversation_participants, get_conversation_with_participants,
+        get_last_read_time, get_unread_messages, get_user_conversations,
+        is_user_in_conversation, mark_conversation_as_read, update_conversation_title,
     },
     error::{AppError, Result},
     events::{SseEvent, broadcast_event},
@@ -452,3 +453,104 @@ pub async fn list_conversations_handler(
     let conversations = get_user_conversations(&state.pool, user_id).await?;
     Ok((StatusCode::OK, Json(conversations)).into_response())
 }
+
+
+// ====== Notification/Read Tracking Endpoints ======
+
+#[utoipa::path(
+    post,
+    path = "/api/conversations/{id}/read",
+    params(
+        ("id" = Uuid, Path, description = "ID of the conversation to mark as read")
+    ),
+    responses(
+        (status = NO_CONTENT, description = "Conversation marked as read"),
+        (status = FORBIDDEN, description = "User is not part of the conversation"),
+    )
+)]
+pub async fn mark_conversation_read_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Response> {
+    // Verify user is part of the conversation
+    if !is_user_in_conversation(&state.pool, session.0.id, conversation_id).await? {
+        return Err(AppError::AuthError(
+            "You are not a member of this conversation.".into(),
+        ));
+    }
+
+    mark_conversation_as_read(&state.pool, session.0.id, conversation_id).await?;
+    
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/messages/unread",
+    responses(
+        (status = OK, description = "List of unread messages", body = Vec<UnreadMessage>),
+        (status = FORBIDDEN, description = "Not authenticated"),
+    )
+)]
+pub async fn get_unread_messages_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+) -> Result<Response> {
+    let unread_messages = get_unread_messages(&state.pool, session.0.id).await?;
+    Ok((StatusCode::OK, Json(unread_messages)).into_response())
+}
+
+// Enhanced get messages that includes read status
+#[derive(Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageWithReadStatus {
+    #[serde(flatten)]
+    pub message: ChatMessage,
+    pub is_read: bool,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/conversations/{id}/messages-with-status",
+    params(
+        ("id" = Uuid, Path, description = "ID of the conversation")
+    ),
+    responses(
+        (status = OK, description = "Messages with read status", body = Vec<MessageWithReadStatus>),
+        (status = FORBIDDEN, description = "User is not part of the conversation"),
+    )
+)]
+pub async fn get_messages_with_status_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+    Path(conversation_id): Path<Uuid>,
+) -> Result<Response> {
+    let user_id = session.0.id;
+    
+    // Verify user is part of the conversation
+    if !is_user_in_conversation(&state.pool, user_id, conversation_id).await? {
+        return Err(AppError::AuthError(
+            "You are not a member of this conversation.".into(),
+        ));
+    }
+
+    let messages = get_conversation_messages(&state.pool, conversation_id).await?;
+    let last_read = get_last_read_time(&state.pool, user_id, conversation_id).await?;
+    
+    let messages_with_status: Vec<MessageWithReadStatus> = messages
+        .into_iter()
+        .map(|msg| {
+            let is_read = msg.sender_id == user_id || // User's own messages are always "read"
+                last_read.map_or(false, |read_time| msg.created_at <= read_time);
+            MessageWithReadStatus {
+                message: msg,
+                is_read,
+            }
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(messages_with_status)).into_response())
+}
+
+use serde::Serialize;
