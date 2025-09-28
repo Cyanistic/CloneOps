@@ -1,6 +1,6 @@
 import { SecurityOverview } from "@/components/security-overview"
 import { AuditLog } from "@/components/audit-log"
-import { AccessControls } from "@/components/access-controls"
+import { AccessControls, AccountProvider } from "@/components/access-controls"
 import { EmergencyControls } from "@/components/emergency-controls"
 
 export default function SecurityPage() {
@@ -21,7 +21,9 @@ export default function SecurityPage() {
           </div>
           <div className="space-y-6">
             <EmergencyControls />
-            <AccessControls />
+            <AccountProvider>
+              <AccessControls />
+            </AccountProvider>
           </div>
         </div>
       </div>
