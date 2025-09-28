@@ -21,7 +21,6 @@ CloneOps is a web-based platform that provides a **complete agent-based framewor
 - Caption-assist & content ideas powered by AI:  
   - Provide a prompt for auto-captioning.  
   - Upload images + short description for creative suggestions.  
-- Enables **sandbox testing** of engagement strategies before live deployment.  
 
 ### 👥 Host & Guest Model  
 - Invite **guests** with customizable permissions (post, comment, respond to DMs).  
@@ -30,8 +29,7 @@ CloneOps is a web-based platform that provides a **complete agent-based framewor
 
 ### 🔒 Security & Control  
 - Sensitive interactions flagged for manual review.  
-- Rules to block certain information from ever being shared.  
-- Two-factor authentication & encryption for all accounts.  
+- Rules to block certain information from ever being shared.   
 - **Global “Kill Switch”** to instantly shut down agent activity.  
 
 ---
@@ -40,7 +38,7 @@ CloneOps is a web-based platform that provides a **complete agent-based framewor
 - **Frontend:** Next.js / React, TailwindCSS  
 - **Backend:** Rust (Actix Web or Axum)  
 - **Database:** SQLite (lightweight, file-based storage)  
-- **Auth & Security:** JWT, 2FA, role-based access  
+- **Auth & Security:** control user permissions
 - **AI/Agents:** Custom LLM integrations & rule-based logic  
 
 ---
@@ -62,7 +60,10 @@ cd cloneops
 **Frontend setup**  
 ```bash
 cd client
-npm install   # or yarn install
+#you have to downgrade a bit for it to work with next js
+npm uninstall react-dom
+npm install react@18.2.0 react-dom@18.2.0
+npm install   
 ```
 
 **Backend setup**  
@@ -109,16 +110,10 @@ npm run dev
 
 **Access:**  
 - Dashboard: `http://localhost:3000`  
-- API Docs (if enabled via e.g. utoipa or paperclip): `http://localhost:8000/docs`  
+- API Docs (like swaggerui): `http://localhost:6969/docs`  
 
 ---
 
-## 🧪 Testing Agents in Sandbox Mode  
-- Pre-script DMs and follower behaviors.  
-- Run simulations before going live.  
-- Monitor logs in the dashboard for debugging.  
-
----
 
 ## 📌 Roadmap  
 - [ ] Multi-platform integration (Twitter, Instagram, Discord).  
