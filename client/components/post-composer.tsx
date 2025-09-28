@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { API } from "@/lib/api";
+import { useSession } from "@/components/session-provider";
+import { UserContent } from "@/Api";
 
 export function PostComposer() {
   const [caption, setCaption] = useState("");
   const [media, setMedia] = useState<File | null>(null);
-  const [isAgentPost, setIsAgentPost] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const { user } = useSession();
 
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -25,51 +27,86 @@ export function PostComposer() {
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const handlePostSubmit = async () => {
+    if (!user) {
+      alert("You must be logged in to create a post.");
+      return;
+    }
+
+    if (!caption.trim() && !media) {
+      alert("Please provide a caption or media for your post.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Create a mock post object to add to history
-      const newPost = {
-        id: `post-${Date.now()}`,
-        caption,
-        isAgentPost,
-        timestamp: new Date().toISOString(),
-        status: "published",
-        mediaUrl: media ? URL.createObjectURL(media) : undefined,
-        mediaType: media ? media.type.startsWith('image/') ? 'image' : 'video' : undefined
-      };
+      // Prepare content based on caption and media
+      const content: UserContent[] = [];
+      
+      if (caption.trim()) {
+        content.push({
+          type: "text",
+          text: caption
+        });
+      }
 
-      // In a real implementation, this would send to the API
-      // For now, we'll just log the post data and return the mock post
-      console.log("Posting with data:", {
-        caption,
-        isAgentPost,
-        media: media ? media.name : null
+      // Handle media upload as base64 string
+      if (media) {
+        // Convert file to base64 for storage in the database
+        const base64Data = await fileToBase64(media);
+        
+        if (media.type.startsWith('image/')) {
+          const imageContent: any = {
+            type: "image",
+            data: {
+              type: "base64",
+              value: base64Data
+            },
+            detail: null, // Image detail is optional
+            media_type: media.type.split('/')[1] || null // Use null if not available
+          };
+          content.push(imageContent);
+        }
+        // For documents like PDFs
+        else {
+          const documentContent: any = {
+            type: "document",
+            data: {
+              type: "base64",
+              value: base64Data
+            },
+            media_type: media.type.split('/')[1] || null,
+            format: null // Format is optional
+          };
+          content.push(documentContent);
+        }
+      }
+
+      // Create the post via API
+      const response = await API.api.createPostHandler({
+        content
       });
 
-      // Example API call:
-      // const response = await apiClient.createPost({
-      //   caption,
-      //   isAgentPost,
-      //   // Additional fields as needed
-      // });
-      
-      // Instead of showing an alert, we could broadcast a new post event
-      // But for now, let's just log success
-      console.log("Post created successfully!");
+      console.log("Post created successfully:", response.data);
       
       // Reset form after successful post
       setCaption("");
       setMedia(null);
-      setIsAgentPost(false);
       setPreviewUrl(null);
       
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl); // Clean up object URL
       }
       
-      // In a real implementation, we'd use the response data
-      // For now, we're using the mock post object
       alert("Post created successfully!");
     } catch (error) {
       console.error("Error creating post:", error);
@@ -102,7 +139,7 @@ export function PostComposer() {
           <Input 
             id="media" 
             type="file" 
-            accept="image/*,video/*" 
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx" 
             onChange={handleMediaChange}
           />
         </div>
@@ -117,22 +154,15 @@ export function PostComposer() {
               />
             ) : (
               <div className="w-full h-48 bg-muted rounded-md flex items-center justify-center border border-border">
-                <span className="text-muted-foreground">Video Preview</span>
+                <span className="text-muted-foreground">
+                  {media?.type.startsWith('video/') ? 'Video Preview' : 
+                   media?.type.startsWith('audio/') ? 'Audio Preview' : 
+                   'Document Preview'}
+                </span>
               </div>
             )}
           </div>
         )}
-
-        <div className="flex items-center justify-between pt-2">
-          <Label htmlFor="use-agent" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-            Post with Agent
-          </Label>
-          <Switch
-            id="use-agent"
-            checked={isAgentPost}
-            onCheckedChange={setIsAgentPost}
-          />
-        </div>
       </CardContent>
       <CardFooter>
         <Button 

@@ -230,3 +230,23 @@ pub async fn get_my_conversations_handler(
     let conversations = get_user_conversations(&state.pool, session.0.id).await?;
     Ok((StatusCode::OK, Json(conversations)).into_response())
 }
+
+#[utoipa::path(
+    delete,
+    path = "/api/users/me",
+    responses(
+        (status = NO_CONTENT, description = "User deleted successfully"),
+        (status = FORBIDDEN, description = "Not authenticated"),
+    ),
+    security(
+        ("lokr_session_cookie" = [])
+    )
+)]
+pub async fn delete_user_handler(
+    State(state): State<AppState>,
+    session: SessionAuth,
+) -> Result<Response> {
+    // Delete user and associated data
+    crate::entities::delete_user(&state.pool, session.0.id).await?;
+    Ok(StatusCode::NO_CONTENT.into_response())
+}

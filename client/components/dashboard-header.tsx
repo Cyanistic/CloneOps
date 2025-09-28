@@ -14,21 +14,34 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Bell, Search, Settings, User, LogOut, Shield } from "lucide-react"
+import Link from "next/link"
+import { useSession } from "@/components/session-provider"
+import { API } from "@/lib/api"
 
 export function DashboardHeader() {
-  const [currentUser, setCurrentUser] = useState<string>("")
-
-  useEffect(() => {
-    const user = localStorage.getItem("cloneops-current-user")
-    if (user) {
-      setCurrentUser(user)
-    }
-  }, [])
-
+  const { user, logout } = useSession()
+  
   const handleLogout = () => {
-    localStorage.removeItem("cloneops-current-user")
-    localStorage.removeItem("cloneops_username")
+    logout()
     window.location.href = "/"
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!user) {
+      alert("You must be logged in to delete your account.");
+      return;
+    }
+
+    try {
+      // Call the API to delete the user account
+      await API.api.deleteUserHandler();
+      
+      // Logout after account deletion
+      logout();
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      alert("Error deleting account. Please try again.");
+    }
   }
 
   const getUserInitials = (username: string) => {
@@ -73,29 +86,37 @@ export function DashboardHeader() {
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/placeholder.svg?height=32&width=32" alt="User" />
-                    <AvatarFallback>{currentUser ? getUserInitials(currentUser) : "U"}</AvatarFallback>
+                    <AvatarFallback>{user?.username ? getUserInitials(user.username) : "U"}</AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{currentUser || "User"}</p>
+                    <p className="text-sm font-medium leading-none">{user?.username || "User"}</p>
                     <p className="text-xs leading-none text-muted-foreground">CloneOps Agent</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Shield className="mr-2 h-4 w-4" />
-                  <span>Security</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
+                <Link href="/profile">
+                  <DropdownMenuItem>
+                    <User className="mr-2 h-4 w-4" />
+                    <span>Profile</span>
+                  </DropdownMenuItem>
+                </Link>
+                <Link href="/security">
+                  <DropdownMenuItem>
+                    <Shield className="mr-2 h-4 w-4" />
+                    <span>Security</span>
+                  </DropdownMenuItem>
+                </Link>
+                <DropdownMenuItem onSelect={() => {
+                  if (window.confirm("Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data.")) {
+                    handleDeleteAccount();
+                  }
+                }}>
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+                  <span className="text-red-600">Delete Account</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>

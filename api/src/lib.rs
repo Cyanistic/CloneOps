@@ -124,6 +124,7 @@ pub static HOST: LazyLock<String> = LazyLock::new(|| {
             users::get_profile,
             users::search_users_handler,
             users::get_user_handler,
+            users::delete_user_handler,
             agents::enhance_prompt,
             agents::research_prompt,
             messaging::create_conversation_handler,
@@ -252,6 +253,7 @@ pub async fn start_server(pool: SqlitePool) -> Result<()> {
         .routes(routes!(users::get_profile))
         .routes(routes!(users::search_users_handler))
         .routes(routes!(users::get_user_handler))
+        .routes(routes!(users::delete_user_handler))
         .routes(routes!(agents::enhance_prompt))
         .routes(routes!(agents::research_prompt))
         .routes(routes!(messaging::create_conversation_handler))
