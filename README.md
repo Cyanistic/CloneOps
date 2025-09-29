@@ -36,7 +36,7 @@ CloneOps is a web-based platform that provides a **complete agent-based framewor
 
 ## 🛠️ Tech Stack  
 - **Frontend:** Next.js / React, TailwindCSS  
-- **Backend:** Rust (Actix Web or Axum)  
+- **Backend:** Rust (Axum)  
 - **Database:** SQLite (lightweight, file-based storage)  
 - **Auth & Security:** control user permissions
 - **AI/Agents:** Custom LLM integrations & rule-based logic  
@@ -46,7 +46,7 @@ CloneOps is a web-based platform that provides a **complete agent-based framewor
 ## 📖 Getting Started  
 
 ### Prerequisites  
-- Node.js >= 18  
+- Node.js >= 18.2.0
 - Rust >= 1.80 (stable toolchain via [rustup](https://rustup.rs))  
 - SQLite (already included with most OS installs)  
 
@@ -98,7 +98,7 @@ sqlite3 cloneops.db
 ```bash
 cd server
 cargo run
-# -> http://localhost:8000
+# -> http://localhost:6969
 ```
 
 **Frontend (Next.js)**  
@@ -115,7 +115,7 @@ npm run dev
 ---
 
 
-## 📌 Roadmap  
+## 📌 Future Plans with Tools
 - [ ] Multi-platform integration (Twitter, Instagram, Discord).  
 - [ ] Advanced analytics & sentiment tracking.  
 - [ ] Mobile app interface.  
